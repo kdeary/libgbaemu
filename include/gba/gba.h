@@ -10,9 +10,9 @@
 #pragma once
 
 #define GBA_SCREEN_WIDTH                240
-#define GBA_SCREEN_HEIGHT               240
+#define GBA_SCREEN_HEIGHT               160
 #define GBA_SCREEN_REAL_WIDTH           308
-#define GBA_SCREEN_REAL_HEIGHT          308
+#define GBA_SCREEN_REAL_HEIGHT          228
 #define GBA_CYCLES_PER_PIXEL            4
 #define GBA_CYCLES_PER_FRAME            (CYCLES_PER_PIXEL * GBA_SCREEN_REAL_WIDTH * GBA_SCREEN_REAL_HEIGHT)
 #define GBA_CYCLES_PER_SECOND           ((uint64_t)(16 * 1024 * 1024))
