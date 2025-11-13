@@ -1,3 +1,4 @@
 build
-roms
+roms/*.gba
+roms/*.bin
 plans
