@@ -1,0 +1,28 @@
+# Spark Mini Console – GBA Core
+
+This repository contains the Game Boy Advance emulator core that powers the Spark Mini Console. It is packaged as a portable library so it can be embedded inside custom frontends (desktop, firmware, or microcontroller-based targets) without depending on platform I/O stacks or filesystem calls.
+
+The implementation is derived from the excellent [Hades emulator](https://github.com/hades-emu/Hades) and keeps its high-accuracy execution model while adapting the memory layout to run within the Spark hardware constraints (sub‑MB RAM with demand paging).
+
+## Purpose
+- Emulate the ARM7TDMI CPU, PPU, APU, DMA, timers, and cartridge peripherals of the GBA.
+- Expose a clean C API (`include/gba/`) for frontends to feed ROM/BIOS buffers, drive input, and consume framebuffer/audio samples.
+- Stay storage-agnostic: the host provides ROM/backup storage buffers, and the core never touches the filesystem directly.
+
+## Usage
+1. **Build the static library**
+   ```sh
+   make
+   ```
+   This produces `build/libgba.a`, which you can link into your platform-specific frontend or firmware.
+
+2. **Integrate with a host**
+   - Call `gba_create()` to allocate the core, then `gba_run()` on a worker thread.
+   - Fill a `struct launch_config` with pointers to your BIOS/ROM data and runtime settings, then send a `MESSAGE_RESET` (see `include/gba/event.h`) so the core picks up the new game.
+   - Drive inputs by pushing `MESSAGE_KEY` events, and read video/audio via the shared framebuffer and APU ring buffer.
+
+3. **Platform notes**
+   - The core assumes the ROM buffer remains valid for the lifetime of the instance; on paged systems you can point it at memory-mapped views or demand-loaded chunks.
+   - Backup storage changes are surfaced through `shared_data.backup_storage`; persist them using your own storage backend when `dirty` becomes `true`.
+
+Refer to `ports/sdl/` for a minimal desktop frontend that demonstrates message passing, rendering, and input plumbing.
