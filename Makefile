@@ -163,14 +163,20 @@ profile-run: profile-build
 
 # --- Valgrind Massif (heap profiler) ---
 valgrind-run: $(PORT_BIN)
-	@valgrind --tool=massif --time-unit=ms $(PORT_BIN) $(TEST_ARGS)
-	@latest=$$(ls -t massif.out.* 2>/dev/null | head -n 1); \
-	if [ -n "$$latest" ]; then \
-		ms_print "$$latest" > $(BUILD_DIR)/massif-report.txt; \
-		echo "✅ Massif report: $(BUILD_DIR)/massif-report.txt"; \
-	else \
-		echo "⚠️  No massif.out.* file found."; \
-	fi
+	@command -v valgrind >/dev/null || { echo "❌ valgrind not found. Please install it to run this target."; exit 127; }
+	@command -v ms_print >/dev/null || { echo "❌ ms_print not found. Install valgrind's tools to continue."; exit 127; }
+	@mkdir -p $(BUILD_DIR)
+	@out_file=$$(mktemp $(BUILD_DIR)/massif.out.XXXXXX); \
+		echo "▶️  Running Massif, output -> $$out_file"; \
+		if valgrind --tool=massif --time-unit=ms --massif-out-file=$$out_file \
+		            $(PORT_BIN) $(TEST_ARGS); then \
+			MS_PRINT_EXEC=$(PORT_BIN) ms_print $$out_file > $(BUILD_DIR)/massif-report.txt; \
+			echo "✅ Massif report with symbols: $(BUILD_DIR)/massif-report.txt"; \
+		else \
+			echo "❌ Massif run failed. See output above."; \
+			rm -f $$out_file; \
+			exit 1; \
+		fi
 
 # --- Valgrind memcheck (leaks + misuse) ---
 memcheck: $(PORT_BIN)
