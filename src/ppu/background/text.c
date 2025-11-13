@@ -13,6 +13,8 @@
 /*
 ** Render the bitmap background of given index.
 */
+
+#ifndef PPU_BG_TEXT_APPROX
 void
 ppu_render_background_text(
     struct gba const *gba,
@@ -132,3 +134,123 @@ ppu_render_background_text(
         }
     }
 }
+#else
+void
+ppu_render_background_text(
+    struct gba const *gba,
+    struct scanline *scanline,
+    uint32_t line,
+    uint32_t bg_idx
+) {
+    struct io const *io;
+    bool palette_type;
+    uint32_t bg_size;
+    uint32_t screen_addr;
+    uint32_t chrs_addr;
+    uint32_t x;
+    int32_t rel_y;          // Y coord of the pixel within the bg
+    uint32_t tile_y;        // Y coord of the tile in the tilemap
+    uint32_t chr_y;         // Y coord of the pixel we want to render within the tile
+    bool up_y;
+
+    io = &gba->io;
+    scanline->top_idx = bg_idx;
+
+    /* Retrieve all those before so that we don't have to read them for each pixel. */
+    bg_size = io->bgcnt[bg_idx].size;
+    palette_type = io->bgcnt[bg_idx].palette_type;
+    screen_addr = (uint32_t)io->bgcnt[bg_idx].screen_base * 0x800;
+    chrs_addr = (uint32_t)io->bgcnt[bg_idx].character_base * 0x4000;
+
+    /*
+    ** Do all the maths for the Y coordinate first, since those do not change until the next scanline.
+    */
+    rel_y = line + io->bg_voffset[bg_idx].raw;
+    tile_y = (rel_y / 8);
+    up_y = tile_y & 0b100000;
+    tile_y %= 32;
+    chr_y = rel_y % 8;
+
+    /*
+    ** Render in coarse horizontal chunks to reduce per-pixel work.
+    ** This sacrifices fine detail but drastically cuts memory traffic.
+    */
+    for (x = 0; x < GBA_SCREEN_WIDTH; x += 4) {
+        int32_t rel_x;          // X coord of the sampled pixel within the bg
+        uint32_t tile_x;        // X coord of the tile in the tilemap
+        uint32_t chr_x;         // X coord of the sampled pixel within the tile
+        uint32_t chr_vy;        // Y coord of the sampled pixel within the tile
+        uint32_t screen_idx;
+        uint8_t palette_idx;
+        union tile tile;
+        bool up_x;
+        uint32_t sample_x;
+        uint32_t fill_until;
+
+        sample_x = x + 2;
+        if (sample_x >= GBA_SCREEN_WIDTH) {
+            sample_x = GBA_SCREEN_WIDTH - 1;
+        }
+
+        rel_x = sample_x + io->bg_hoffset[bg_idx].raw;
+
+        tile_x = (rel_x / 8);
+        up_x = tile_x & 0b100000;
+        tile_x %= 32;
+        chr_x = rel_x % 8;
+
+        switch (bg_size) {
+            case 0b00: // 256x256 (32x32)
+                screen_idx = tile_y * 32 + tile_x;
+                break;
+            case 0b01: // 512x256 (64x32)
+                screen_idx = tile_y * 32 + tile_x + up_x * 1024;
+                break;
+            case 0b10: // 256x512 (32x64)
+                screen_idx = tile_y * 32 + tile_x + up_y * 1024;
+                break;
+            case 0b11: // 512x512 (64x64)
+                screen_idx = tile_y * 32 + tile_x + up_x * 1024 + up_y * 2048;
+                break;
+        }
+
+        tile.raw = mem_vram_read16(gba, screen_addr + screen_idx * sizeof(union tile));
+        chr_vy = chr_y ^ tile.vflip * 0b111;
+        chr_x ^= tile.hflip * 0b111;
+
+        if (palette_type) { // 256 colors, 1 palette
+            palette_idx = mem_vram_read8(gba, chrs_addr + tile.number * 64 + chr_vy * 8 + chr_x);
+        } else { // 16 colors, 16 palettes
+            palette_idx = mem_vram_read8(gba, chrs_addr + tile.number * 32 + chr_vy * 4 + (chr_x >> 1));
+            palette_idx >>= (chr_x % 2) * 4;
+            palette_idx &= 0xF;
+        }
+
+        fill_until = x + 4;
+        if (fill_until > GBA_SCREEN_WIDTH) {
+            fill_until = GBA_SCREEN_WIDTH;
+        }
+
+        if (palette_idx) {
+            struct rich_color c;
+
+            c.raw = mem_palram_read16(
+                gba,
+                (tile.palette * 16 * !palette_type + palette_idx) * sizeof(union color)
+            );
+
+            c.visible = true;
+            c.idx = bg_idx;
+            c.force_blend = false;
+
+            for (uint32_t xi = x; xi < fill_until; ++xi) {
+                scanline->bg[xi] = c;
+            }
+        } else {
+            for (uint32_t xi = x; xi < fill_until; ++xi) {
+                scanline->bg[xi].visible = false;
+            }
+        }
+    }
+}
+#endif
