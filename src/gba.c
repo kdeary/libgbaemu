@@ -185,8 +185,8 @@ gba_state_reset(
 
         // Copy the BIOS and ROM to memory
         memcpy(gba->memory.bios, config->bios.data, min(config->bios.size, BIOS_SIZE));
-        memcpy(gba->memory.rom, config->rom.data, min(config->rom.size, CART_SIZE));
-        gba->memory.rom_size = config->rom.size;
+        gba->memory.rom.data = config->rom.data;
+        gba->memory.rom.size = min(config->rom.size, (size_t)CART_SIZE);
     }
 
     // IO
@@ -300,16 +300,16 @@ gba_state_reset(
         gba->memory.backup_storage.type = config->backup_storage.type;
         switch (gba->memory.backup_storage.type) {
             case BACKUP_EEPROM_4K: {
-                gba->memory.backup_storage.chip.eeprom.mask = (gba->memory.rom_size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0xFF000000;
-                gba->memory.backup_storage.chip.eeprom.range = (gba->memory.rom_size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0x0d000000;
+                gba->memory.backup_storage.chip.eeprom.mask = (gba->memory.rom.size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0xFF000000;
+                gba->memory.backup_storage.chip.eeprom.range = (gba->memory.rom.size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0x0d000000;
                 gba->memory.backup_storage.chip.eeprom.address_mask = EEPROM_4K_ADDR_MASK;
                 gba->memory.backup_storage.chip.eeprom.address_len = EEPROM_4K_ADDR_LEN;
                 gba->shared_data.backup_storage.size = EEPROM_4K_SIZE;
                 break;
             };
             case BACKUP_EEPROM_64K: {
-                gba->memory.backup_storage.chip.eeprom.mask = (gba->memory.rom_size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0xFF000000;
-                gba->memory.backup_storage.chip.eeprom.range = (gba->memory.rom_size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0x0d000000;
+                gba->memory.backup_storage.chip.eeprom.mask = (gba->memory.rom.size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0xFF000000;
+                gba->memory.backup_storage.chip.eeprom.range = (gba->memory.rom.size > 16 * 1024 * 1024) ? 0x01FFFF00 : 0x0d000000;
                 gba->memory.backup_storage.chip.eeprom.address_mask = EEPROM_64K_ADDR_MASK;
                 gba->memory.backup_storage.chip.eeprom.address_len = EEPROM_64K_ADDR_LEN;
                 gba->shared_data.backup_storage.size = EEPROM_64K_SIZE;

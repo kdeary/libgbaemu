@@ -203,6 +203,11 @@ struct prefetch_buffer {
     bool enabled;
 };
 
+struct rom_view {
+    uint8_t const *data;
+    size_t size;
+};
+
 /*
 ** The overall memory of the Gameboy Advance.
 */
@@ -218,8 +223,7 @@ struct memory {
     uint8_t oam[OAM_SIZE];
 
     // External Memory (Game Pak)
-    uint8_t rom[CART_SIZE];
-    size_t rom_size;
+    struct rom_view rom;
 
     // Backup Storage
     struct {

@@ -111,6 +111,7 @@ quickload(
 ) {
     struct quicksave_buffer buffer;
     size_t i;
+    struct rom_view rom_view;
 
     buffer.data = data;
     buffer.size = size;
@@ -119,6 +120,8 @@ quickload(
     free(gba->scheduler.events);
     gba->scheduler.events = NULL;
     gba->scheduler.events_size = 0;
+
+    rom_view = gba->memory.rom;
 
     if (
            quicksave_read(&buffer, (uint8_t *)&gba->core, sizeof(gba->core))
@@ -133,6 +136,8 @@ quickload(
     ) {
         return (true);
     }
+
+    gba->memory.rom = rom_view;
 
     gba->scheduler.events = calloc(gba->scheduler.events_size, sizeof(struct scheduler_event));
     hs_assert(gba->scheduler.events);
