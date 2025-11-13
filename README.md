@@ -1,8 +1,8 @@
-# Spark Mini Console – GBA Core
+# libgbaemu - A Headless GBA Emulator Core
 
-This repository contains the Game Boy Advance emulator core that powers the Spark Mini Console. It is packaged as a portable library so it can be embedded inside custom frontends (desktop, firmware, or microcontroller-based targets) without depending on platform I/O stacks or filesystem calls.
+This repository contains a standalone, headless Game Boy Advance emulator core packaged as a portable C library. It is intended to be embedded inside custom frontends (desktop, firmware, microcontroller targets) without pulling in platform I/O stacks or filesystem calls.
 
-The implementation is derived from the excellent [Hades emulator](https://github.com/hades-emu/Hades) and keeps its high-accuracy execution model while adapting the memory layout to run within the Spark hardware constraints (sub‑MB RAM with demand paging).
+The implementation is derived from the excellent [Hades emulator](https://github.com/hades-emu/Hades) and keeps its high-accuracy execution model while adapting the memory layout to run within tight RAM budgets and demand-paged environments.
 
 ## Purpose
 - Emulate the ARM7TDMI CPU, PPU, APU, DMA, timers, and cartridge peripherals of the GBA.
