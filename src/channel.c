@@ -12,6 +12,9 @@
 #include "gba/channel.h"
 #include "gba/event.h"
 
+#define CHANNEL_MIN_CAPACITY      256u
+#define CHANNEL_CACHE_LIMIT       (4u * 1024u)
+
 /*
 ** Initialize the channel.
 */
@@ -61,7 +64,7 @@ channel_push(
     new_size = channel->size + event->size;
     if (channel->allocated_size < new_size) {
         if (!channel->allocated_size) {
-            channel->allocated_size += 1;
+            channel->allocated_size = CHANNEL_MIN_CAPACITY;
         }
 
         while (channel->allocated_size < new_size) {
@@ -136,4 +139,24 @@ channel_clear(
 ) {
     channel->length = 0;
     channel->size = 0;
+
+    if (channel->allocated_size > CHANNEL_CACHE_LIMIT) {
+        if (CHANNEL_CACHE_LIMIT) {
+            void *new_events;
+
+            new_events = realloc(channel->events, CHANNEL_CACHE_LIMIT);
+            if (new_events) {
+                channel->events = new_events;
+                channel->allocated_size = CHANNEL_CACHE_LIMIT;
+            } else {
+                free(channel->events);
+                channel->events = NULL;
+                channel->allocated_size = 0;
+            }
+        } else {
+            free(channel->events);
+            channel->events = NULL;
+            channel->allocated_size = 0;
+        }
+    }
 }
