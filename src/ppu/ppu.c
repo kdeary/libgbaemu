@@ -52,18 +52,6 @@ ppu_initialize_scanline(
 /*
 ** Merge the current layer with any previous ones (using alpha blending) as stated in REG_BLDCNT.
 */
-/*
-** FAST / APPROXIMATE version:
-** - Approximates alpha: out = top + ((bot - top) * evb >> 4)  // assumes eva ≈ 16 - evb
-** - Hoists invariants, minimizes branching, avoids repeated bitfield_get()
-** - Keeps windowing and sprite-force behavior, but with less per-pixel overhead
-*/
-/*
-** FAST / APPROXIMATE version:
-** - Approximates alpha: out = top + ((bot - top) * evb >> 4)  // assumes eva ≈ 16 - evb
-** - Hoists invariants, minimizes branching, avoids repeated bitfield_get()
-** - Keeps windowing and sprite-force behavior, but with less per-pixel overhead
-*/
 static
 void
 ppu_merge_layer(
@@ -88,9 +76,6 @@ ppu_merge_layer(
     // BLDCNT enable bit for this top layer
     const uint32_t top_bit = 1u << top_idx;
     const bool top_enabled_global = (bldcnt_raw & top_bit) != 0;
-
-    // Cached coeff for alpha approx
-    const int32_t k_evb = (int32_t)evb;
 
     struct rich_color *restrict res = scanline->result;
     struct rich_color *restrict bot = scanline->bot;
@@ -139,15 +124,19 @@ ppu_merge_layer(
             if (!(top_enabled_global || topc.force_blend) || !bot_enabled || !botc.visible) {
                 res[x] = topc;
             } else {
-                // Approximate alpha: out = top + ((bot - top) * evb >> 4)
-                const int32_t dr = (int32_t)botc.red   - (int32_t)topc.red;
-                const int32_t dg = (int32_t)botc.green - (int32_t)topc.green;
-                const int32_t db = (int32_t)botc.blue  - (int32_t)topc.blue;
+                // Use true eva/evb weights: out = (eva * top + evb * bot) >> 4
+                int32_t blended_r = ((int32_t)eva * (int32_t)topc.red   + (int32_t)evb * (int32_t)botc.red)   >> 4;
+                int32_t blended_g = ((int32_t)eva * (int32_t)topc.green + (int32_t)evb * (int32_t)botc.green) >> 4;
+                int32_t blended_b = ((int32_t)eva * (int32_t)topc.blue  + (int32_t)evb * (int32_t)botc.blue)  >> 4;
+
+                if (blended_r > 31) blended_r = 31;
+                if (blended_g > 31) blended_g = 31;
+                if (blended_b > 31) blended_b = 31;
 
                 struct rich_color out;
-                out.red     = (uint8_t)((int32_t)topc.red   + ((dr * k_evb) >> 4));
-                out.green   = (uint8_t)((int32_t)topc.green + ((dg * k_evb) >> 4));
-                out.blue    = (uint8_t)((int32_t)topc.blue  + ((db * k_evb) >> 4));
+                out.red     = (uint8_t)blended_r;
+                out.green   = (uint8_t)blended_g;
+                out.blue    = (uint8_t)blended_b;
                 out.visible = true;
                 out.idx     = (uint8_t)top_idx;
                 res[x] = out;
@@ -155,8 +144,8 @@ ppu_merge_layer(
             continue;
         }
 
-        if (mode_eff == BLEND_LIGHT) {
-            if (top_enabled_global) {
+        if (top_enabled_global) {
+            if (mode_eff == BLEND_LIGHT) {
                 struct rich_color out;
                 out.red     = topc.red   + (((31 - topc.red)   * evy) >> 4);
                 out.green   = topc.green + (((31 - topc.green) * evy) >> 4);
@@ -164,14 +153,10 @@ ppu_merge_layer(
                 out.visible = true;
                 out.idx     = topc.idx;
                 res[x] = out;
-            } else {
-                res[x] = topc;
+                continue;
             }
-            continue;
-        }
 
-        // BLEND_DARK
-        if (top_enabled_global) {
+            // BLEND_DARK
             struct rich_color out;
             out.red     = topc.red   - ((topc.red   * evy) >> 4);
             out.green   = topc.green - ((topc.green * evy) >> 4);
@@ -184,8 +169,6 @@ ppu_merge_layer(
         }
     }
 }
-
-
 
 
 /*
@@ -324,17 +307,22 @@ ppu_draw_scanline(
 ) {
     uint32_t x;
     uint32_t y;
+    uint16_t *dst;
+    size_t base;
 
     y = gba->io.vcount.raw;
+    dst = gba->shared_data.framebuffer.data[gba->shared_data.framebuffer.back];
+    base = GBA_SCREEN_WIDTH * (size_t)y;
+
     for (x = 0; x < GBA_SCREEN_WIDTH; ++x) {
         struct rich_color c;
 
         c = scanline->result[x];
-        gba->ppu.framebuffer[GBA_SCREEN_WIDTH * y + x] = 0xFF000000
-            | (((uint32_t)c.red   << 3 ) | (((uint32_t)c.red   >> 2) & 0b111)) << 0
-            | (((uint32_t)c.green << 3 ) | (((uint32_t)c.green >> 2) & 0b111)) << 8
-            | (((uint32_t)c.blue  << 3 ) | (((uint32_t)c.blue  >> 2) & 0b111)) << 16
-        ;
+        dst[base + x] = (uint16_t)(
+            ((uint32_t)c.red & 0x1F)
+            | (((uint32_t)c.green & 0x1F) << 5)
+            | (((uint32_t)c.blue & 0x1F) << 10)
+        );
     }
 }
 
@@ -365,14 +353,14 @@ ppu_hdraw(
             gba->ppu.skip_current_frame = false;
         }
     } else if (io->vcount.raw == GBA_SCREEN_HEIGHT) {
-        /*
-        ** Now that the frame is finished, we can copy the current framebuffer to
-        ** the one the frontend uses.
-        **
-        ** Doing it now will avoid tearing.
-        */
+        /* Display work is done: publish the completed buffer and grab the other one for the next frame. */
+        uint32_t old_front;
+
         pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
-        memcpy(gba->shared_data.framebuffer.data, gba->ppu.framebuffer, sizeof(gba->ppu.framebuffer));
+        old_front = gba->shared_data.framebuffer.front;
+        gba->shared_data.framebuffer.front = gba->shared_data.framebuffer.back;
+        gba->shared_data.framebuffer.back = old_front;
+        gba->shared_data.framebuffer.dirty = true;
         pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
     }
 
@@ -471,6 +459,6 @@ ppu_render_black_screen(
     struct gba *gba
 ) {
     pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
-    memset(gba->shared_data.framebuffer.data, 0x00, sizeof(gba->ppu.framebuffer));
+    memset(gba->shared_data.framebuffer.data, 0x00, sizeof(gba->shared_data.framebuffer.data));
     pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
 }

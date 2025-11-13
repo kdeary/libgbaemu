@@ -47,6 +47,9 @@ gba_create(
     // Shared Data
     {
         pthread_mutex_init(&gba->shared_data.framebuffer.lock, NULL);
+        gba->shared_data.framebuffer.front = 0;
+        gba->shared_data.framebuffer.back = 1;
+        gba->shared_data.framebuffer.dirty = false;
         pthread_mutex_init(&gba->shared_data.audio_rbuffer_mutex, NULL);
     }
 
@@ -174,6 +177,20 @@ gba_state_reset(
                 GBA_CYCLES_PER_PIXEL * GBA_SCREEN_REAL_WIDTH * GBA_SCREEN_REAL_HEIGHT   // Period
             )
         );
+    }
+
+    // Shared framebuffer
+    {
+        pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
+        memset(
+            gba->shared_data.framebuffer.data,
+            0x00,
+            sizeof(gba->shared_data.framebuffer.data)
+        );
+        gba->shared_data.framebuffer.front = 0;
+        gba->shared_data.framebuffer.back = 1;
+        gba->shared_data.framebuffer.dirty = false;
+        pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
     }
 
     // Memory

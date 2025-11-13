@@ -111,9 +111,6 @@ union oam_entry {
 static_assert(sizeof(union oam_entry) == 3 * sizeof(uint16_t));
 
 struct ppu {
-    /* The emulator's screen as it is being rendered. */
-    uint32_t framebuffer[GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT];
-
     /* Internal registers used for affine backgrounds */
     int32_t internal_px[2];
     int32_t internal_py[2];

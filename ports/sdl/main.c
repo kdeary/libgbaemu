@@ -70,6 +70,21 @@ translate_keycode(
     return false;
 }
 
+static inline uint32_t
+color555_to_argb(
+    uint16_t color
+) {
+    uint32_t r = color & 0x1F;
+    uint32_t g = (color >> 5) & 0x1F;
+    uint32_t b = (color >> 10) & 0x1F;
+
+    r = (r << 3) | (r >> 2);
+    g = (g << 3) | (g >> 2);
+    b = (b << 3) | (b >> 2);
+
+    return 0xFF000000u | (r << 0) | (g << 8) | (b << 16);
+}
+
 static void
 push_message(
     struct gba *gba,
@@ -282,7 +297,7 @@ main(
     struct launch_config config;
     struct gba_settings settings;
     struct game_entry *entry;
-    uint8_t *framebuffer_copy;
+    uint32_t *framebuffer_copy;
     SDL_Window *window;
     SDL_Renderer *renderer;
     SDL_Texture *texture;
@@ -498,8 +513,15 @@ main(
         }
 
         if (gba_shared_reset_frame_counter(port.gba) > 0) {
+            size_t i;
+            uint16_t const *src;
+
             gba_shared_framebuffer_lock(port.gba);
-            memcpy(framebuffer_copy, port.gba->shared_data.framebuffer.data, frame_size);
+            src = port.gba->shared_data.framebuffer.data[port.gba->shared_data.framebuffer.front];
+            for (i = 0; i < GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT; ++i) {
+                framebuffer_copy[i] = color555_to_argb(src[i]);
+            }
+            port.gba->shared_data.framebuffer.dirty = false;
             gba_shared_framebuffer_release(port.gba);
 
             SDL_UpdateTexture(texture, NULL, framebuffer_copy, GBA_SCREEN_WIDTH * (int)sizeof(uint32_t));
