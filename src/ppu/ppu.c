@@ -66,133 +66,106 @@ ppu_merge_layer(
     struct scanline *scanline,
     struct rich_color *layer
 ) {
-    // --------- Hoisted invariants ---------
-    struct io const *io = &gba->io;
+    uint32_t eva;
+    uint32_t evb;
+    uint32_t evy;
+    struct io const *io;
+    uint32_t x;
 
-    // Coeffs clamped to [0..16]
-    const uint32_t eva = (io->bldalpha.top_coef  > 16) ? 16 : io->bldalpha.top_coef;
-    const uint32_t evb = (io->bldalpha.bot_coef  > 16) ? 16 : io->bldalpha.bot_coef;
-    const uint32_t evy = (io->bldy.coef          > 16) ? 16 : io->bldy.coef;
+    io = &gba->io;
+    eva = min(16, io->bldalpha.top_coef);
+    evb = min(16, io->bldalpha.bot_coef);
+    evy = min(16, io->bldy.coef);
 
-    const uint32_t bldcnt_raw = io->bldcnt.raw;
-    const uint32_t base_mode  = io->bldcnt.mode;
+    const bool windows_any = (scanline->top_idx <= 4) && (io->dispcnt.win0 || io->dispcnt.win1 || io->dispcnt.winobj);
 
-    // Top index and "any windows?" (so we can skip per-pixel window logic when off)
-    const uint32_t top_idx    = (uint32_t)scanline->top_idx; // 0..4
-    const bool windows_any    = (scanline->top_idx <= 4) && (io->dispcnt.win0 || io->dispcnt.win1 || io->dispcnt.winobj);
+    for (x = 0; x < GBA_SCREEN_WIDTH; ++x) {
+        bool bot_enabled;
+        bool top_enabled;
+        struct rich_color topc;
+        struct rich_color botc;
+        uint32_t mode;
 
-    // Fast masks for top/bot enable in BLDCNT (bits 0..5 for top layers, 8..13 for bot)
-    const uint32_t top_bit = 1u << top_idx;
-    // bot layer bit depends on botc.idx (varies per pixel) → computed once per pixel from raw
+        topc = layer[x];
+        botc = scanline->bot[x];
 
-    // Precompute a flag: is the top layer generally blend-enabled?
-    const bool top_enabled_global = ((bldcnt_raw & top_bit) != 0);
-
-    // Pointers for tight loop
-    struct rich_color *restrict res = scanline->result;
-    struct rich_color *restrict bot = scanline->bot;
-    struct rich_color *restrict top = layer;
-
-    // Cached copies of constants to ease compiler vectorization
-    const int32_t k_evb = (int32_t)evb;
-    const uint32_t mode_if_no_window = base_mode;
-
-    // --------- Main loop ---------
-    for (uint32_t x = 0; x < GBA_SCREEN_WIDTH; ++x) {
-        struct rich_color topc = top[x];
+        /* Skip transparent pixels */
         if (!topc.visible) {
-            // Still push bot forward to maintain "previous" layer for next merges.
-            bot[x] = topc;  // keep behavior parity with original (writes current top to bot)
             continue;
         }
 
-        struct rich_color botc = bot[x];
+        mode = gba->io.bldcnt.mode;
+        bot_enabled = bitfield_get(io->bldcnt.raw, botc.idx + 8);
+        top_enabled = bitfield_get(io->bldcnt.raw, scanline->top_idx);
 
-        // Start from base mode; windowing may turn it off
-        uint32_t mode_eff = mode_if_no_window;
-
-        // Windowing: only do the expensive check if windows exist at all
+        /* Apply windowing, if any */
         if (windows_any) {
             uint8_t win_opts = ppu_find_top_window(gba, scanline, x);
             // If window hides this layer, skip draw
-            if (((win_opts >> top_idx) & 1u) == 0u) {
+            if (((win_opts >> scanline->top_idx) & 1u) == 0u) {
                 // Do not update result/bot with an invisible pixel
                 continue;
             }
             // Windows can disable blending (bit 5 clear)
             if (((win_opts >> 5) & 1u) == 0u) {
-                mode_eff = BLEND_OFF;
+                mode = BLEND_OFF;
             }
         }
 
-        // Sprite can force alpha blend if bottom is enabled
-        const bool bot_enabled = ((bldcnt_raw >> (8u + botc.idx)) & 1u) != 0;
+        /* Sprite can force blending no matter what BLDCNT says */
         if (topc.force_blend && bot_enabled) {
-            mode_eff = BLEND_ALPHA;
+            mode = BLEND_ALPHA;
         }
 
-        // Keep "bot" chain updated (as original does before switch)
-        bot[x] = topc;
+        scanline->bot[x] = layer[x];
 
-        // Fast paths
-        if (mode_eff == BLEND_OFF) {
-            res[x] = topc;
+        /* Default path: top wins unless an enabled blend actually applies */
+        scanline->result[x] = topc;
+
+        if (mode == BLEND_OFF) {
             continue;
         }
 
-        // --- BLEND_ALPHA (approximate): out = top + ((bot - top)*evb >> 4)
-        if (mode_eff == BLEND_ALPHA) {
-            // If top layer not enabled for blending & not forcing it, just take top
-            if (!(top_enabled_global || topc.force_blend) || !bot_enabled || !botc.visible) {
-                res[x] = topc;
-            } else {
-                // Per-channel in 5-bit domain, arithmetic stays within [0..31], so no clamp needed
-                const int32_t dr = (int32_t)botc.red   - (int32_t)topc.red;
-                const int32_t dg = (int32_t)botc.green - (int32_t)topc.green;
-                const int32_t db = (int32_t)botc.blue  - (int32_t)topc.blue;
+        if (mode == BLEND_ALPHA) {
+            const bool top_enabled =
+                bitfield_get(io->bldcnt.raw, scanline->top_idx) || topc.force_blend;
 
-                struct rich_color out;
-                out.red     = (uint8_t)((int32_t)topc.red   + ((dr * k_evb) >> 4));
-                out.green   = (uint8_t)((int32_t)topc.green + ((dg * k_evb) >> 4));
-                out.blue    = (uint8_t)((int32_t)topc.blue  + ((db * k_evb) >> 4));
-                out.visible = true;
-                out.idx     = (uint8_t)top_idx;
-                res[x] = out;
+            /* Only override default if both layers participate and bot is visible */
+            if (top_enabled && bot_enabled && botc.visible) {
+                scanline->result[x].red   = min(31, ((uint32_t)topc.red   * eva + (uint32_t)botc.red   * evb) >> 4);
+                scanline->result[x].green = min(31, ((uint32_t)topc.green * eva + (uint32_t)botc.green * evb) >> 4);
+                scanline->result[x].blue  = min(31, ((uint32_t)topc.blue  * eva + (uint32_t)botc.blue  * evb) >> 4);
+                scanline->result[x].visible = true;
+                scanline->result[x].idx = scanline->top_idx;
             }
             continue;
         }
 
-        // --- BLEND_LIGHT: keep math, but avoid repeated bit checks
-        if (mode_eff == BLEND_LIGHT) {
-            if (top_enabled_global) {
-                struct rich_color out;
-                // c + ((31 - c) * evy) >> 4
-                out.red     = topc.red   + (((31 - topc.red)   * evy) >> 4);
-                out.green   = topc.green + (((31 - topc.green) * evy) >> 4);
-                out.blue    = topc.blue  + (((31 - topc.blue)  * evy) >> 4);
-                out.visible = true;
-                out.idx     = topc.idx;
-                res[x] = out;
-            } else {
-                res[x] = topc;
+        /* LIGHT/DARK only do anything when the top layer is enabled for blending */
+        if (mode == BLEND_LIGHT || mode == BLEND_DARK) {
+            const bool top_enabled = bitfield_get(io->bldcnt.raw, scanline->top_idx);
+            if (!top_enabled) {
+                continue; /* keep default top result */
             }
+
+            if (mode == BLEND_LIGHT) {
+                scanline->result[x].red   = topc.red   + (((31 - topc.red)   * evy) >> 4);
+                scanline->result[x].green = topc.green + (((31 - topc.green) * evy) >> 4);
+                scanline->result[x].blue  = topc.blue  + (((31 - topc.blue)  * evy) >> 4);
+                scanline->result[x].idx = topc.idx;
+                scanline->result[x].visible = true;
+                continue;
+            }
+
+            /* BLEND_DARK */
+            scanline->result[x].red   = topc.red   - ((topc.red   * evy) >> 4);
+            scanline->result[x].green = topc.green - ((topc.green * evy) >> 4);
+            scanline->result[x].blue  = topc.blue  - ((topc.blue  * evy) >> 4);
+            scanline->result[x].idx = topc.idx;
+            scanline->result[x].visible = true;
             continue;
         }
 
-        // --- BLEND_DARK
-        /* mode_eff == BLEND_DARK */
-        if (top_enabled_global) {
-            struct rich_color out;
-            // c - ((c * evy) >> 4)
-            out.red     = topc.red   - ((topc.red   * evy) >> 4);
-            out.green   = topc.green - ((topc.green * evy) >> 4);
-            out.blue    = topc.blue  - ((topc.blue  * evy) >> 4);
-            out.visible = true;
-            out.idx     = topc.idx;
-            res[x] = out;
-        } else {
-            res[x] = topc;
-        }
     }
 }
 
