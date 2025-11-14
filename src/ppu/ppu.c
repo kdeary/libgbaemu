@@ -311,7 +311,7 @@ ppu_draw_scanline(
     size_t base;
 
     y = gba->io.vcount.raw;
-    dst = gba->shared_data.framebuffer.data[gba->shared_data.framebuffer.back];
+    dst = gba->shared_data.framebuffer.data;
     base = GBA_SCREEN_WIDTH * (size_t)y;
 
     for (x = 0; x < GBA_SCREEN_WIDTH; ++x) {
@@ -345,6 +345,7 @@ ppu_hdraw(
     if (io->vcount.raw >= GBA_SCREEN_REAL_HEIGHT) {
         io->vcount.raw = 0;
         atomic_fetch_add(&gba->shared_data.frame_counter, 1);
+        atomic_fetch_add(&gba->shared_data.framebuffer.version, 1);
 
         if (gba->settings.enable_frame_skipping && gba->settings.frame_skip_counter > 0) {
             gba->ppu.current_frame_skip_counter = (gba->ppu.current_frame_skip_counter + 1) % gba->settings.frame_skip_counter;
@@ -353,15 +354,8 @@ ppu_hdraw(
             gba->ppu.skip_current_frame = false;
         }
     } else if (io->vcount.raw == GBA_SCREEN_HEIGHT) {
-        /* Display work is done: publish the completed buffer and grab the other one for the next frame. */
-        uint32_t old_front;
-
-        pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
-        old_front = gba->shared_data.framebuffer.front;
-        gba->shared_data.framebuffer.front = gba->shared_data.framebuffer.back;
-        gba->shared_data.framebuffer.back = old_front;
-        gba->shared_data.framebuffer.dirty = true;
-        pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
+        atomic_store(&gba->shared_data.framebuffer.dirty, true);
+        atomic_fetch_add(&gba->shared_data.framebuffer.version, 1);
     }
 
     io->dispstat.vcount_eq = (io->vcount.raw == io->dispstat.vcount_val);

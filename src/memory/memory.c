@@ -107,7 +107,8 @@ mem_prefetch_buffer_access_fast(
     struct gba *gba,
     uint32_t addr,
     uint32_t intended_cycles,
-    uint32_t page
+    uint32_t page,
+    bool thumb
 ) {
     struct prefetch_buffer *p = &gba->memory.pbuffer;
 
@@ -118,7 +119,7 @@ mem_prefetch_buffer_access_fast(
             gba->memory.gamepak_bus_in_use = false;
             core_idle_for(gba, p->countdown);
             p->tail += p->insn_len;
-            p->size = (uint8_t)(p->size - 1); // becomes 0xFF but ignored if unsigned? If signed, keep original.
+            p->size--;
         } else {
             p->tail += p->insn_len;
             p->size--;
@@ -132,7 +133,6 @@ mem_prefetch_buffer_access_fast(
     core_idle_for(gba, intended_cycles);
 
     // Reconfigure buffer based on Thumb/ARM
-    const bool thumb = gba->core.cpsr.thumb;
     if (thumb) {
         p->insn_len = sizeof(uint16_t);
         p->capacity = 8;
@@ -161,38 +161,39 @@ mem_access(
     uint32_t size,  // In bytes
     enum access_types access_type
 ) {
+    const bool thumb = gba->core.cpsr.thumb;
+
     // Align cheaply for 1/2/4
     addr = align_addr_pow2(addr, size);
 
     // Page decode once
-    const uint32_t page = (addr >> 24) & 0xF;
+    const uint32_t region = addr >> 24;
+    const uint32_t page = region & 0xF;
 
     // Fast range test: (page in [CART_REGION_START..CART_REGION_END])
-    const uint32_t cart_lo = CART_REGION_START;
-    const uint32_t cart_hi = CART_REGION_END;
-    const bool in_cart = (uint32_t)(page - cart_lo) <= (cart_hi - cart_lo);
+    const bool in_cart = (uint32_t)(region - CART_REGION_START) <= (CART_REGION_END - CART_REGION_START);
 
     // Non-sequential on every 128 KiB boundary for cart
     if (UNLIKELY(in_cart && ((addr & 0x1FFFFu) == 0))) {
         access_type = NON_SEQUENTIAL;
     }
 
-    // Pick row once, avoid 2D index twice
-    const uint32_t *row16 = access_time16[access_type];
-    const uint32_t *row32 = access_time32[access_type];
+    const uint32_t cycles = (size <= sizeof(uint16_t))
+        ? access_time16[access_type][page]
+        : access_time32[access_type][page];
 
-    const uint32_t cycles = (size <= sizeof(uint16_t)) ? row16[page] : row32[page];
+    // Track bus state eagerly for non-cart paths too
+    gba->memory.gamepak_bus_in_use = in_cart;
 
     // If not on cart bus, or prefetch disabled, or DMA active -> simple idle
-    if (!in_cart || !gba->memory.pbuffer.enabled || gba->core.is_dma_running) {
-        gba->memory.gamepak_bus_in_use = in_cart;
+    const bool can_prefetch = in_cart && gba->memory.pbuffer.enabled && !gba->core.is_dma_running;
+    if (LIKELY(!can_prefetch)) {
         core_idle_for(gba, cycles);
         return;
     }
 
     // Prefetch path (cart + prefetch enabled + no DMA)
-    gba->memory.gamepak_bus_in_use = true;
-    mem_prefetch_buffer_access_fast(gba, addr, cycles, page);
+    mem_prefetch_buffer_access_fast(gba, addr, cycles, page, thumb);
 }
 
 void
@@ -586,9 +587,12 @@ mem_read16_ror(
     mem_access(gba, addr, sizeof(uint16_t), access_type);
 
     rotate = (addr & 0b1) * 8;
+
+    // printf("attempting to read %x\n", addr);
+    if((addr & 0xff00000) == 0xbf00000) return (ror32(0, rotate));
     value = template_read(uint16_t, gba, addr);
 
-    /* Unaligned 16-bits loads are supposed to be unpredictable, but in practise the GBA rotates them */
+    /* Unaligned 16-bits loads are supposed to be unpredictable, but in practice the GBA rotates them */
     return (ror32(value, rotate));
 }
 

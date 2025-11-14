@@ -47,9 +47,8 @@ gba_create(
     // Shared Data
     {
         pthread_mutex_init(&gba->shared_data.framebuffer.lock, NULL);
-        gba->shared_data.framebuffer.front = 0;
-        gba->shared_data.framebuffer.back = 1;
-        gba->shared_data.framebuffer.dirty = false;
+        atomic_init(&gba->shared_data.framebuffer.version, 1);
+        atomic_init(&gba->shared_data.framebuffer.dirty, false);
         pthread_mutex_init(&gba->shared_data.audio_rbuffer_mutex, NULL);
     }
 
@@ -187,9 +186,8 @@ gba_state_reset(
             0x00,
             sizeof(gba->shared_data.framebuffer.data)
         );
-        gba->shared_data.framebuffer.front = 0;
-        gba->shared_data.framebuffer.back = 1;
-        gba->shared_data.framebuffer.dirty = false;
+        atomic_store(&gba->shared_data.framebuffer.version, 1);
+        atomic_store(&gba->shared_data.framebuffer.dirty, false);
         pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
     }
 

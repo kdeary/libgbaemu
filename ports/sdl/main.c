@@ -1,6 +1,6 @@
 /******************************************************************************\
 **
-**  Simple SDL front-end for the libgba core.
+**  Simple SDL front-end for the libgbaemu core.
 **
 **  Loads a ROM (and optional BIOS), runs the emulator on a background thread,
 **  and blits the shared framebuffer to an SDL window. No input or audio.
@@ -514,15 +514,29 @@ main(
 
         if (gba_shared_reset_frame_counter(port.gba) > 0) {
             size_t i;
+            uint32_t version_before;
+            uint32_t version_after;
             uint16_t const *src;
 
-            gba_shared_framebuffer_lock(port.gba);
-            src = port.gba->shared_data.framebuffer.data[port.gba->shared_data.framebuffer.front];
-            for (i = 0; i < GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT; ++i) {
-                framebuffer_copy[i] = color555_to_argb(src[i]);
-            }
-            port.gba->shared_data.framebuffer.dirty = false;
-            gba_shared_framebuffer_release(port.gba);
+            do {
+                version_before = atomic_load_explicit(&port.gba->shared_data.framebuffer.version, memory_order_acquire);
+                if (version_before & 1u) {
+                    SDL_Delay(0);
+                    continue;
+                }
+
+                src = port.gba->shared_data.framebuffer.data;
+                for (i = 0; i < GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT; ++i) {
+                    framebuffer_copy[i] = color555_to_argb(src[i]);
+                }
+
+                version_after = atomic_load_explicit(&port.gba->shared_data.framebuffer.version, memory_order_acquire);
+                if (version_before != version_after || (version_after & 1u)) {
+                    SDL_Delay(0);
+                }
+            } while (version_before != version_after || (version_after & 1u));
+
+            atomic_store_explicit(&port.gba->shared_data.framebuffer.dirty, false, memory_order_release);
 
             SDL_UpdateTexture(texture, NULL, framebuffer_copy, GBA_SCREEN_WIDTH * (int)sizeof(uint32_t));
             SDL_RenderClear(renderer);
