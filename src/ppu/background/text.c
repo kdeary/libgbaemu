@@ -1,3 +1,8 @@
+/*
+** Modifications by Korbin Deary (kdeary).
+** Licensed under the same terms as the Hades emulator (GNU GPLv2).
+*/
+
 #include "gba/gba.h"
 #include "gba/ppu.h"
 

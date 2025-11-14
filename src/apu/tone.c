@@ -1,3 +1,8 @@
+/*
+** Modifications by Korbin Deary (kdeary).
+** Licensed under the same terms as the Hades emulator (GNU GPLv2).
+*/
+
 /******************************************************************************\
 **
 **  This file is part of the Hades GBA Emulator, and is made available under

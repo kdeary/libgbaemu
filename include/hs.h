@@ -7,6 +7,11 @@
 **  helpers that the extracted sources rely on.
 **
 \******************************************************************************/
+/*
+** Modifications by Korbin Deary (kdeary).
+** Licensed under the same terms as the Hades emulator (GNU GPLv2).
+*/
+
 
 #pragma once
 
