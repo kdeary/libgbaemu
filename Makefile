@@ -66,7 +66,7 @@ endif
 
 OBJ := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRC))
 
-LIB := $(BUILD_DIR)/libgba.a
+LIB := $(BUILD_DIR)/libgbaemu.a
 PORT_SRC := ports/sdl/main.c
 PORT_OBJ := $(patsubst %.c,$(OBJ_DIR)/%.o,$(PORT_SRC))
 PORT_BIN := $(BUILD_DIR)/gba-sdl
@@ -75,7 +75,7 @@ PORT_BIN := $(BUILD_DIR)/gba-sdl
 PROFILE_FLAGS = -pg
 PROFILE_BUILD_DIR := $(BUILD_DIR)/profile
 OBJ_DIR_PROFILE := $(PROFILE_BUILD_DIR)/obj
-LIB_PROFILE := $(PROFILE_BUILD_DIR)/libgba.a
+LIB_PROFILE := $(PROFILE_BUILD_DIR)/libgbaemu.a
 PORT_OBJ_PROFILE := $(patsubst %.c,$(OBJ_DIR_PROFILE)/%.o,$(PORT_SRC))
 PORT_BIN_PROFILE := $(PROFILE_BUILD_DIR)/gba-sdl
 OBJ_PROFILE := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR_PROFILE)/%.o,$(SRC))

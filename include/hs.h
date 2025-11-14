@@ -43,11 +43,23 @@
 #ifndef __packed
 #define __packed __attribute__((packed))
 #endif
+#ifndef HOT
+#define HOT __attribute__((hot))
+#endif
+#ifndef FLATTEN
+#define FLATTEN __attribute__((flatten))
+#endif
 #ifndef likely
 #define likely(x) __builtin_expect(!!(x), 1)
 #endif
 #ifndef unlikely
 #define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+#ifndef LIKELY
+#define LIKELY(x) likely(x)
+#endif
+#ifndef UNLIKELY
+#define UNLIKELY(x) unlikely(x)
 #endif
 #ifndef __noreturn
 #define __noreturn __attribute__((noreturn))

@@ -49,6 +49,22 @@ static uint32_t access_time32[2][16] = {
 
 static uint32_t gamepak_nonseq_waitstates[4] = { 4, 3, 2, 8 };
 
+// Optional hot/inline hints (GCC/Clang)
+
+static inline uint32_t
+align_addr_pow2(
+    uint32_t addr,
+    uint32_t size
+) {
+    // Fast path for 1/2/4; fall back if odd size appears.
+    switch (size) {
+        case 1: return addr;
+        case 2: return addr & ~1u;
+        case 4: return addr & ~3u;
+        default: return align_on(addr, size);
+    }
+}
+
 /*
 ** Set the waitstates for ROM/SRAM memory according to the content of REG_WAITCNT.
 */
@@ -86,84 +102,97 @@ mem_update_waitstates(
     }
 }
 
+static inline void HOT
+mem_prefetch_buffer_access_fast(
+    struct gba *gba,
+    uint32_t addr,
+    uint32_t intended_cycles,
+    uint32_t page
+) {
+    struct prefetch_buffer *p = &gba->memory.pbuffer;
+
+    if (LIKELY(p->tail == addr)) {
+        // Sequential hit
+        if (p->size == 0) {
+            // We're still finishing the fetch
+            gba->memory.gamepak_bus_in_use = false;
+            core_idle_for(gba, p->countdown);
+            p->tail += p->insn_len;
+            p->size = (uint8_t)(p->size - 1); // becomes 0xFF but ignored if unsigned? If signed, keep original.
+        } else {
+            p->tail += p->insn_len;
+            p->size--;
+            gba->memory.gamepak_bus_in_use = false;
+            core_idle(gba);
+        }
+        return;
+    }
+
+    // Miss or non-sequential: first pay intended cycles
+    core_idle_for(gba, intended_cycles);
+
+    // Reconfigure buffer based on Thumb/ARM
+    const bool thumb = gba->core.cpsr.thumb;
+    if (thumb) {
+        p->insn_len = sizeof(uint16_t);
+        p->capacity = 8;
+        // Reload for sequential on this page (reuse row to avoid 2D index)
+        p->reload   = access_time16[SEQUENTIAL][page];
+    } else {
+        p->insn_len = sizeof(uint32_t);
+        p->capacity = 4;
+        p->reload   = access_time32[SEQUENTIAL][page];
+    }
+
+    p->countdown = p->reload;
+    p->tail      = addr + p->insn_len;
+    p->head      = p->tail;
+    p->size      = 0;
+}
+
 /*
 ** Calculate and add to the current cycle counter the amount of cycles needed for as many bus accesses
 ** are needed to transfer a data of the given size and access type.
 */
-void
+void HOT FLATTEN
 mem_access(
     struct gba *gba,
     uint32_t addr,
     uint32_t size,  // In bytes
     enum access_types access_type
 ) {
-    uint32_t cycles;
-    uint32_t page;
+    // Align cheaply for 1/2/4
+    addr = align_addr_pow2(addr, size);
 
-    addr = align_on(addr, size);
-    page = (addr >> 24) & 0xF;
+    // Page decode once
+    const uint32_t page = (addr >> 24) & 0xF;
 
-    if (unlikely(page >= CART_REGION_START && page <= CART_REGION_END && !(addr & 0x1FFFF))) {
+    // Fast range test: (page in [CART_REGION_START..CART_REGION_END])
+    const uint32_t cart_lo = CART_REGION_START;
+    const uint32_t cart_hi = CART_REGION_END;
+    const bool in_cart = (uint32_t)(page - cart_lo) <= (cart_hi - cart_lo);
+
+    // Non-sequential on every 128 KiB boundary for cart
+    if (UNLIKELY(in_cart && ((addr & 0x1FFFFu) == 0))) {
         access_type = NON_SEQUENTIAL;
     }
 
-    if (size <= sizeof(uint16_t)) {
-        cycles = access_time16[access_type][page];
-    } else {
-        cycles = access_time32[access_type][page];
-    }
+    // Pick row once, avoid 2D index twice
+    const uint32_t *row16 = access_time16[access_type];
+    const uint32_t *row32 = access_time32[access_type];
 
-    gba->memory.gamepak_bus_in_use = (page >= CART_REGION_START && page <= CART_REGION_END);
-    if (gba->memory.gamepak_bus_in_use && gba->memory.pbuffer.enabled && !gba->core.is_dma_running) {
-        mem_prefetch_buffer_access(gba, addr, cycles);
-    } else {
+    const uint32_t cycles = (size <= sizeof(uint16_t)) ? row16[page] : row32[page];
+
+    // If not on cart bus, or prefetch disabled, or DMA active -> simple idle
+    if (!in_cart || !gba->memory.pbuffer.enabled || gba->core.is_dma_running) {
+        gba->memory.gamepak_bus_in_use = in_cart;
         core_idle_for(gba, cycles);
+        return;
     }
-}
 
-void
-mem_prefetch_buffer_access(
-    struct gba *gba,
-    uint32_t addr,
-    uint32_t intended_cycles
-) {
-    struct prefetch_buffer *pbuffer;
-
-    pbuffer = &gba->memory.pbuffer;
-
-    if (pbuffer->tail == addr) {
-        if (pbuffer->size == 0) { // Finish to fetch if it isn't done yet
-            gba->memory.gamepak_bus_in_use = false;
-            core_idle_for(gba, pbuffer->countdown);
-
-            pbuffer->tail += pbuffer->insn_len;
-            --pbuffer->size;
-        } else {
-            pbuffer->tail += pbuffer->insn_len;
-            --pbuffer->size;
-
-            gba->memory.gamepak_bus_in_use = false;
-            core_idle(gba);
-        }
-    } else {
-        // Do it first or it'll screw our pbuffer settings
-        core_idle_for(gba, intended_cycles);
-
-        if (gba->core.cpsr.thumb) {
-            pbuffer->insn_len = sizeof(uint16_t);
-            pbuffer->capacity = 8;
-            pbuffer->reload = access_time16[SEQUENTIAL][(addr >> 24) & 0xF];
-        } else {
-            pbuffer->insn_len = sizeof(uint32_t);
-            pbuffer->capacity = 4;
-            pbuffer->reload = access_time32[SEQUENTIAL][(addr >> 24) & 0xF];
-        }
-
-        pbuffer->countdown = pbuffer->reload;
-        pbuffer->tail = addr + pbuffer->insn_len;
-        pbuffer->head = pbuffer->tail;
-        pbuffer->size = 0;
-    }
+    // Prefetch path (cart + prefetch enabled + no DMA)
+    gba->memory.gamepak_bus_in_use = true;
+    mem_prefetch_buffer_access_fast(gba, addr, cycles, page);
 }
 
 void

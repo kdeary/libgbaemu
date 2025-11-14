@@ -1,0 +1,30 @@
+src/core/core.c:565:36: error: Shifting signed 32-bit value by 31 bits is undefined behaviour [shiftTooManyBitsSigned]
+            value = (int32_t)value >> (bits - 1);
+                                   ^
+src/core/core.c:563:24: note: Assignment 'bits=32', assigned value is 32
+                bits = 32;
+                       ^
+src/core/core.c:565:36: note: Shift
+            value = (int32_t)value >> (bits - 1);
+                                   ^
+src/core/thumb/logical.c:118:28: error: Shifting signed 32-bit value by 31 bits is undefined behaviour [shiftTooManyBitsSigned]
+    value = (int32_t)value >> (shift - 1);
+                           ^
+src/core/thumb/logical.c:115:17: note: Assignment 'shift=32', assigned value is 32
+        shift = 32;
+                ^
+src/core/thumb/logical.c:118:28: note: Shift
+    value = (int32_t)value >> (shift - 1);
+                           ^
+src/db.c:1748:20: warning: If memory allocation fails, then there is a possible null pointer dereference: entry [nullPointerOutOfMemory]
+            memcpy(entry, game_database + i, sizeof(*entry));
+                   ^
+src/db.c:1747:27: note: Assuming allocation function fails
+            entry = calloc(1, sizeof(*entry));
+                          ^
+src/db.c:1747:27: note: Assignment 'entry=calloc(1,sizeof(*entry))', assigned value is 0
+            entry = calloc(1, sizeof(*entry));
+                          ^
+src/db.c:1748:20: note: Null pointer dereference
+            memcpy(entry, game_database + i, sizeof(*entry));
+                   ^
