@@ -11,6 +11,8 @@ SDL2_CONFIG ?= sdl2-config
 SDL2_CFLAGS ?= $(shell $(SDL2_CONFIG) --cflags 2>/dev/null)
 SDL2_LIBS ?= $(shell $(SDL2_CONFIG) --libs 2>/dev/null)
 
+STACK_USAGE ?= 0
+
 SRC := \
 	$(SRC_DIR)/apu/apu.c \
 	$(SRC_DIR)/apu/fifo.c \
@@ -92,9 +94,16 @@ CFLAGS += -std=gnu17 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -f
 ARFLAGS ?= rcs
 LIBS := -lpthread -lm
 
+STACK_USAGE_FILE ?= $(BUILD_DIR)/stack-usage-report.txt
+
+ifeq ($(STACK_USAGE),1)
+CFLAGS += -fstack-usage
+endif
+
 .PHONY: all clean distclean \
-        profile-build profile-run \
-        valgrind-run memcheck perf-run
+	profile-build profile-run \
+	valgrind-run memcheck perf-run \
+	stack-usage
 
 all: $(LIB) $(PORT_BIN)
 
@@ -168,8 +177,9 @@ valgrind-run: $(PORT_BIN)
 	@mkdir -p $(BUILD_DIR)
 	@out_file=$$(mktemp $(BUILD_DIR)/massif.out.XXXXXX); \
 		echo "▶️  Running Massif, output -> $$out_file"; \
-		if valgrind --tool=massif --time-unit=ms --massif-out-file=$$out_file \
-		            $(PORT_BIN) $(TEST_ARGS); then \
+		if valgrind --tool=massif --suppressions=bench/valgrind_sdl.suppression --time-unit=ms --massif-out-file=$$out_file \
+				--ignore-fn=SDL_* --ignore-fn=*_gallium* --ignore-fn=*_mesa* \
+			$(PORT_BIN) $(TEST_ARGS); then \
 			MS_PRINT_EXEC=$(PORT_BIN) ms_print $$out_file > $(BUILD_DIR)/massif-report.txt; \
 			echo "✅ Massif report with symbols: $(BUILD_DIR)/massif-report.txt"; \
 		else \
@@ -186,3 +196,32 @@ memcheck: $(PORT_BIN)
 perf-run: $(PORT_BIN)
 	@perf record -g --call-graph dwarf $(PORT_BIN) $(TEST_ARGS)
 	@perf report
+
+# --- Stack usage aggregation ---
+stack-usage: clean
+	@$(MAKE) STACK_USAGE=1 all >/dev/null
+	@mkdir -p $(BUILD_DIR)
+	@su_files=$$(find $(BUILD_DIR) -name '*.su' | sort); \
+	if [ -z "$$su_files" ]; then \
+		echo "❌ No stack usage files produced. Does your compiler support -fstack-usage?"; \
+		exit 1; \
+	fi; \
+	out="$(STACK_USAGE_FILE)"; \
+	overall=0; \
+	{ \
+		echo "# Stack usage report"; \
+		echo "# Generated: $$(date -u)"; \
+		echo "# Toolchain: $(CC)"; \
+	} > $$out; \
+	for f in $$su_files; do \
+		echo >> $$out; \
+		echo "## $$f" >> $$out; \
+		cat $$f >> $$out; \
+		file_total=$$(awk '{ for (i = 1; i <= NF; ++i) { if ($$i ~ /^[0-9]+$$/) { sum += $$i; break; } } } END { printf("%d", sum) }' $$f); \
+		overall=$$((overall + file_total)); \
+		echo "File total: $$file_total bytes" >> $$out; \
+	done; \
+	echo >> $$out; \
+	echo "## Overall" >> $$out; \
+	echo "Total stack usage across files: $$overall bytes" >> $$out; \
+	echo "✅ Stack usage report written to $$out"

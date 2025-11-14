@@ -153,6 +153,8 @@ struct launch_config {
     struct {
         uint8_t *data;
         size_t size;
+        int fd;
+        size_t fd_offset;
     } rom;
 
     // The BIOS and its size

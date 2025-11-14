@@ -211,6 +211,8 @@ struct prefetch_buffer {
 struct rom_view {
     uint8_t const *data;
     size_t size;
+    void const *mapping_base;
+    size_t mapping_size;
 };
 
 /*

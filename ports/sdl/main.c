@@ -377,6 +377,8 @@ main(
     memset(&config, 0, sizeof(config));
     config.rom.data = rom.data;
     config.rom.size = rom.size;
+    config.rom.fd = -1;
+    config.rom.fd_offset = 0;
     config.bios.data = bios.data;
     config.bios.size = bios.size;
     config.skip_bios = skip_bios;

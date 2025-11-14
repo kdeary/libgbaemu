@@ -12,13 +12,68 @@
 */
 
 
+#include <errno.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 #include "hs.h"
 #include "gba/gba.h"
 #include "gba/core/arm.h"
 #include "gba/core/thumb.h"
 #include "gba/channel.h"
 #include "gba/event.h"
+
+static void
+gba_memory_release_rom(
+    struct memory *memory
+) {
+    if (!memory) {
+        return;
+    }
+
+    if (memory->rom.mapping_base && memory->rom.mapping_size) {
+        munmap((void *)memory->rom.mapping_base, memory->rom.mapping_size);
+    }
+
+    memory->rom.mapping_base = NULL;
+    memory->rom.mapping_size = 0;
+    memory->rom.data = NULL;
+    memory->rom.size = 0;
+}
+
+static void
+gba_memory_attach_rom(
+    struct memory *memory,
+    struct launch_config const *config
+) {
+    size_t rom_size;
+
+    hs_assert(memory);
+    hs_assert(config);
+
+    rom_size = min(config->rom.size, (size_t)CART_SIZE);
+    hs_assert(rom_size);
+
+    if (config->rom.fd >= 0 && !config->rom.data) {
+        void *mapping;
+
+        mapping = mmap(NULL, rom_size, PROT_READ, MAP_PRIVATE, config->rom.fd, (off_t)config->rom.fd_offset);
+        if (mapping == MAP_FAILED) {
+            panic(HS_MEMORY, "Failed to mmap ROM: %s", strerror(errno));
+        }
+
+        memory->rom.data = mapping;
+        memory->rom.size = rom_size;
+        memory->rom.mapping_base = mapping;
+        memory->rom.mapping_size = rom_size;
+    } else {
+        hs_assert(config->rom.data);
+        memory->rom.data = config->rom.data;
+        memory->rom.size = rom_size;
+        memory->rom.mapping_base = NULL;
+        memory->rom.mapping_size = 0;
+    }
+}
 
 /*
 ** Create a new GBA emulator.
@@ -130,6 +185,8 @@ gba_state_stop(
     free(gba->shared_data.backup_storage.data);
     gba->shared_data.backup_storage.data = NULL;
 
+    gba_memory_release_rom(&gba->memory);
+
     gba->state = GBA_STATE_STOP;
     gba_send_notification(gba, NOTIFICATION_STOP);
 }
@@ -201,12 +258,12 @@ gba_state_reset(
         struct memory *memory;
 
         memory = &gba->memory;
+        gba_memory_release_rom(memory);
         memset(memory, 0, sizeof(*memory));
 
         // Copy the BIOS and ROM to memory
         memcpy(gba->memory.bios, config->bios.data, min(config->bios.size, BIOS_SIZE));
-        gba->memory.rom.data = config->rom.data;
-        gba->memory.rom.size = min(config->rom.size, (size_t)CART_SIZE);
+        gba_memory_attach_rom(memory, config);
     }
 
     // IO
@@ -613,6 +670,9 @@ void
 gba_delete(
     struct gba *gba
 ) {
+    if (gba) {
+        gba_memory_release_rom(&gba->memory);
+    }
     free(gba);
 }
 
