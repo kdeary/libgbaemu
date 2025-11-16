@@ -3,7 +3,7 @@
 **  Simple SDL front-end for the libgbaemu core.
 **
 **  Loads a ROM (and optional BIOS), runs the emulator on a background thread,
-**  and blits the shared framebuffer to an SDL window. No input or audio.
+**  and blits the streamed scanline output to an SDL window. No input or audio.
 **
 \******************************************************************************/
 
@@ -12,6 +12,7 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -33,11 +34,54 @@ struct file_buffer {
     size_t size;
 };
 
+struct video_sink_ctx {
+    uint16_t *raw;
+    pthread_mutex_t lock;
+    atomic_uint version;
+};
+
 struct sdl_port {
     struct gba *gba;
     pthread_t thread;
     bool thread_started;
+    struct video_sink_ctx video;
+    bool video_initialized;
 };
+
+static void
+sdl_scanline_callback(
+    struct gba *gba __unused,
+    void *userdata,
+    uint32_t y,
+    uint16_t const *pixels,
+    size_t count
+) {
+    struct video_sink_ctx *ctx = userdata;
+
+    if (y >= GBA_SCREEN_HEIGHT) {
+        return;
+    }
+
+    const size_t safe_count = count < (size_t)GBA_SCREEN_WIDTH ? count : (size_t)GBA_SCREEN_WIDTH;
+
+    pthread_mutex_lock(&ctx->lock);
+    memcpy(ctx->raw + y * GBA_SCREEN_WIDTH, pixels, safe_count * sizeof(uint16_t));
+    atomic_fetch_add_explicit(&ctx->version, 1u, memory_order_release);
+    pthread_mutex_unlock(&ctx->lock);
+}
+
+static void
+teardown_video_sink(
+    struct sdl_port *port
+) {
+    if (!port->video_initialized) {
+        return;
+    }
+    pthread_mutex_destroy(&port->video.lock);
+    free(port->video.raw);
+    port->video.raw = NULL;
+    port->video_initialized = false;
+}
 
 struct key_binding {
     SDL_Keycode keycode;
@@ -269,6 +313,7 @@ shutdown_emulator(
     msg_exit.header.kind = MESSAGE_EXIT;
     msg_exit.header.size = sizeof(msg_exit);
 
+    gba_set_video_sink(port->gba, NULL);
     push_message(port->gba, &msg_exit.header);
 
     if (port->thread_started) {
@@ -278,6 +323,7 @@ shutdown_emulator(
 
     gba_delete(port->gba);
     port->gba = NULL;
+    teardown_video_sink(port);
 }
 
 static void
@@ -371,6 +417,29 @@ main(
         free_file_buffer(&bios);
         return EXIT_FAILURE;
     }
+    if (pthread_mutex_init(&port.video.lock, NULL) != 0) {
+        fprintf(stderr, "Failed to initialize video sink mutex.\n");
+        gba_delete(port.gba);
+        free_file_buffer(&rom);
+        free_file_buffer(&bios);
+        return EXIT_FAILURE;
+    }
+    port.video.raw = calloc(GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT, sizeof(uint16_t));
+    if (!port.video.raw) {
+        fprintf(stderr, "Out of memory allocating video sink buffer.\n");
+        pthread_mutex_destroy(&port.video.lock);
+        gba_delete(port.gba);
+        free_file_buffer(&rom);
+        free_file_buffer(&bios);
+        return EXIT_FAILURE;
+    }
+    atomic_init(&port.video.version, 0);
+    port.video_initialized = true;
+    struct gba_video_sink video_sink = {
+        .scanline = sdl_scanline_callback,
+        .userdata = &port.video,
+    };
+    gba_set_video_sink(port.gba, &video_sink);
 
     settings = default_settings();
 
@@ -413,7 +482,7 @@ main(
 
     window_scale = 1;
     window = SDL_CreateWindow(
-        "Spark Mini Console - SDL Port",
+        "libgbaemu - SDL Port",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         GBA_SCREEN_WIDTH * window_scale,
@@ -519,27 +588,19 @@ main(
             size_t i;
             uint32_t version_before;
             uint32_t version_after;
-            uint16_t const *src;
 
             do {
-                version_before = atomic_load_explicit(&port.gba->shared_data.framebuffer.version, memory_order_acquire);
-                if (version_before & 1u) {
-                    SDL_Delay(0);
-                    continue;
-                }
-
-                src = port.gba->shared_data.framebuffer.data;
+                version_before = atomic_load_explicit(&port.video.version, memory_order_acquire);
+                pthread_mutex_lock(&port.video.lock);
                 for (i = 0; i < GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT; ++i) {
-                    framebuffer_copy[i] = color555_to_argb(src[i]);
+                    framebuffer_copy[i] = color555_to_argb(port.video.raw[i]);
                 }
-
-                version_after = atomic_load_explicit(&port.gba->shared_data.framebuffer.version, memory_order_acquire);
-                if (version_before != version_after || (version_after & 1u)) {
+                pthread_mutex_unlock(&port.video.lock);
+                version_after = atomic_load_explicit(&port.video.version, memory_order_acquire);
+                if (version_before != version_after) {
                     SDL_Delay(0);
                 }
-            } while (version_before != version_after || (version_after & 1u));
-
-            atomic_store_explicit(&port.gba->shared_data.framebuffer.dirty, false, memory_order_release);
+            } while (version_before != version_after);
 
             SDL_UpdateTexture(texture, NULL, framebuffer_copy, GBA_SCREEN_WIDTH * (int)sizeof(uint32_t));
             SDL_RenderClear(renderer);

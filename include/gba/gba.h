@@ -55,15 +55,14 @@ enum keys {
     KEY_MIN = KEY_A,
 };
 
-struct shared_data {
-    // The emulator's screen, as built by the PPU each frame.
-    struct {
-        uint16_t data[GBA_SCREEN_WIDTH * GBA_SCREEN_HEIGHT];
-        atomic_uint version;
-        atomic_bool dirty;
-        pthread_mutex_t lock;
-    } framebuffer;
+typedef void (*gba_scanline_fn)(struct gba *gba, void *userdata, uint32_t y, uint16_t const *pixels, size_t count);
 
+struct gba_video_sink {
+    gba_scanline_fn scanline;
+    void *userdata;
+};
+
+struct shared_data {
     // The game's backup storage.
     // There's no lock behind this data because
     struct {
@@ -130,6 +129,7 @@ struct gba {
 
     // Shared data with the frontend, mainly the framebuffer and audio channels.
     struct shared_data shared_data;
+    struct gba_video_sink video_sink;
 
     // A set of settings the frontend can update during the emulator's execution (speed, etc.)
     struct gba_settings settings;
@@ -197,8 +197,8 @@ enum notification_kind;
 struct gba *gba_create(void);
 void gba_run(struct gba *gba);
 void gba_delete(struct gba *gba);
-void gba_shared_framebuffer_lock(struct gba *gba);
-void gba_shared_framebuffer_release(struct gba *gba);
+void gba_set_video_sink(struct gba *gba, struct gba_video_sink const *sink);
+void gba_video_emit_scanline(struct gba *gba, uint32_t y, uint16_t const *pixels, size_t count);
 void gba_shared_audio_rbuffer_lock(struct gba *gba);
 void gba_shared_audio_rbuffer_release(struct gba *gba);
 uint32_t gba_shared_audio_rbuffer_pop_sample(struct gba *gba);

@@ -18,6 +18,23 @@
 #include "hs.h"
 #include "gba/scheduler.h"
 
+#define MEM_PAGE_SHIFT          11u
+#define MEM_PAGE_SIZE           (1u << MEM_PAGE_SHIFT)
+
+struct gba;
+struct mem_region {
+    uint8_t **pages;
+    size_t page_count;
+    size_t size;
+    size_t used_pages;
+};
+
+void mem_region_init(struct mem_region *region, size_t size);
+void mem_region_reset(struct mem_region *region);
+void mem_region_release(struct mem_region *region);
+void mem_region_read(struct mem_region const *region, uint32_t offset, void *dst, size_t len);
+void mem_region_write(struct mem_region *region, uint32_t offset, void const *src, size_t len);
+
 /*
 ** Access to the memory bus can either be sequential (the requested address follows the previous one)
 ** or non-sequential (the requested address is unrelated to the previous one)
@@ -221,13 +238,13 @@ struct rom_view {
 struct memory {
     // General Internal Memory
     uint8_t bios[BIOS_SIZE];
-    uint8_t ewram[EWRAM_SIZE];
-    uint8_t iwram[IWRAM_SIZE];
+    struct mem_region ewram;
+    struct mem_region iwram;
 
     // Internal Display Memory
-    uint8_t palram[PALRAM_SIZE];
-    uint8_t vram[VRAM_SIZE];
-    uint8_t oam[OAM_SIZE];
+    struct mem_region palram;
+    struct mem_region vram;
+    struct mem_region oam;
 
     // External Memory (Game Pak)
     struct rom_view rom;
@@ -330,9 +347,46 @@ bool quickload(struct gba *gba, uint8_t *data, size_t size);
 ** with no overhead and to prevent the cycle counter to be incremented.
 */
 
-#define mem_palram_read8(gba, addr)         ((gba)->memory.palram[(addr) & PALRAM_MASK])
-#define mem_vram_read8(gba, addr)           ((gba)->memory.vram[(addr) & (((addr) & 0x10000) ? VRAM_MASK_1 : VRAM_MASK_2)])
-#define mem_oam_read8(gba, addr)            ((gba)->memory.oam[(addr) & OAM_MASK])
-#define mem_palram_read16(gba, addr)        (*(uint16_t *)((uint8_t *)(gba)->memory.palram + ((addr) & PALRAM_MASK)))
-#define mem_vram_read16(gba, addr)          (*(uint16_t *)((uint8_t *)(gba)->memory.vram + ((addr) & (((addr) & 0x10000) ? VRAM_MASK_1 : VRAM_MASK_2))))
-#define mem_oam_read16(gba, addr)           (*(uint16_t *)((uint8_t *)(gba)->memory.oam + ((addr) & OAM_MASK)))
+#define mem_palram_read8(gba, addr)                                                \
+    ({                                                                             \
+        uint8_t _val;                                                              \
+        mem_region_read(&(gba)->memory.palram, (addr) & PALRAM_MASK, &_val, sizeof(_val)); \
+        _val;                                                                      \
+    })
+
+#define mem_palram_read16(gba, addr)                                               \
+    ({                                                                             \
+        uint16_t _val;                                                             \
+        mem_region_read(&(gba)->memory.palram, (addr) & PALRAM_MASK, &_val, sizeof(_val)); \
+        _val;                                                                      \
+    })
+
+#define mem_vram_read8(gba, addr)                                                  \
+    ({                                                                             \
+        uint8_t _val;                                                              \
+        uint32_t _off = (addr) & (((addr) & 0x10000u) ? VRAM_MASK_1 : VRAM_MASK_2);\
+        mem_region_read(&(gba)->memory.vram, _off, &_val, sizeof(_val));           \
+        _val;                                                                      \
+    })
+
+#define mem_vram_read16(gba, addr)                                                 \
+    ({                                                                             \
+        uint16_t _val;                                                             \
+        uint32_t _off = (addr) & (((addr) & 0x10000u) ? VRAM_MASK_1 : VRAM_MASK_2);\
+        mem_region_read(&(gba)->memory.vram, _off, &_val, sizeof(_val));           \
+        _val;                                                                      \
+    })
+
+#define mem_oam_read8(gba, addr)                                                   \
+    ({                                                                             \
+        uint8_t _val;                                                              \
+        mem_region_read(&(gba)->memory.oam, (addr) & OAM_MASK, &_val, sizeof(_val)); \
+        _val;                                                                      \
+    })
+
+#define mem_oam_read16(gba, addr)                                                  \
+    ({                                                                             \
+        uint16_t _val;                                                             \
+        mem_region_read(&(gba)->memory.oam, (addr) & OAM_MASK, &_val, sizeof(_val)); \
+        _val;                                                                      \
+    })

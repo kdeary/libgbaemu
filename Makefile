@@ -73,6 +73,12 @@ PORT_SRC := ports/sdl/main.c
 PORT_OBJ := $(patsubst %.c,$(OBJ_DIR)/%.o,$(PORT_SRC))
 PORT_BIN := $(BUILD_DIR)/gba-sdl
 
+HEADLESS_SRC := ports/headless/main.c
+HEADLESS_OBJ := $(patsubst %.c,$(OBJ_DIR)/%.o,$(HEADLESS_SRC))
+HEADLESS_BIN := $(BUILD_DIR)/gba-headless
+
+SELECTED_PROFILE_BIN := $(HEADLESS_BIN)
+
 # ---- Profiling (separate build dir) ----
 PROFILE_FLAGS = -pg
 PROFILE_BUILD_DIR := $(BUILD_DIR)/profile
@@ -105,7 +111,7 @@ endif
 	valgrind-run memcheck perf-run \
 	stack-usage
 
-all: $(LIB) $(PORT_BIN)
+all: $(LIB) $(PORT_BIN) $(HEADLESS_BIN)
 
 $(LIB): $(OBJ)
 	@mkdir -p $(dir $@)
@@ -122,6 +128,14 @@ $(OBJ_DIR)/ports/sdl/%.o: ports/sdl/%.c
 $(PORT_BIN): $(LIB) $(PORT_OBJ)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(SDL2_CFLAGS) $(PORT_OBJ) $(LIB) $(SDL2_LIBS) $(LIBS) -o $@
+
+$(OBJ_DIR)/ports/headless/%.o: ports/headless/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+$(HEADLESS_BIN): $(LIB) $(HEADLESS_OBJ)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(HEADLESS_OBJ) $(LIB) $(LIBS) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
@@ -156,14 +170,14 @@ $(PORT_BIN_PROFILE): $(LIB_PROFILE) $(PORT_OBJ_PROFILE)
 # --- gprof run + report (robust) ---
 profile-run: profile-build
 	@mkdir -p $(PROFILE_BUILD_DIR)
-	$(PORT_BIN_PROFILE) $(TEST_ARGS)
+	$(SELECTED_PROFILE_BIN) $(TEST_ARGS)
 
 	# Move default gmon.out if it was written in CWD
 	@if [ -f gmon.out ]; then mv gmon.out $(PROFILE_BUILD_DIR)/gmon.out; fi
 
 	# Build report from any gmon.out variant we have
 	@if ls $(PROFILE_BUILD_DIR)/gmon.out* >/dev/null 2>&1; then \
-		gprof $(PORT_BIN_PROFILE) $(PROFILE_BUILD_DIR)/gmon.out* > $(PROFILE_BUILD_DIR)/gprof-report.txt; \
+		gprof $(SELECTED_PROFILE_BIN) $(PROFILE_BUILD_DIR)/gmon.out* > $(PROFILE_BUILD_DIR)/gprof-report.txt; \
 		echo "✅ gprof report: $(PROFILE_BUILD_DIR)/gprof-report.txt"; \
 	else \
 		echo "❌ No gmon.out produced. Make sure you rebuilt with -pg (use: make profile-build) and that your system supports gprof."; \
@@ -171,16 +185,16 @@ profile-run: profile-build
 	fi
 
 # --- Valgrind Massif (heap profiler) ---
-valgrind-run: $(PORT_BIN)
+valgrind-run: $(SELECTED_PROFILE_BIN)
 	@command -v valgrind >/dev/null || { echo "❌ valgrind not found. Please install it to run this target."; exit 127; }
 	@command -v ms_print >/dev/null || { echo "❌ ms_print not found. Install valgrind's tools to continue."; exit 127; }
 	@mkdir -p $(BUILD_DIR)
 	@out_file=$$(mktemp $(BUILD_DIR)/massif.out.XXXXXX); \
 		echo "▶️  Running Massif, output -> $$out_file"; \
 		if valgrind --tool=massif --suppressions=bench/valgrind_sdl.suppression --time-unit=ms --massif-out-file=$$out_file \
-				--ignore-fn=SDL_* --ignore-fn=*_gallium* --ignore-fn=*_mesa* \
-			$(PORT_BIN) $(TEST_ARGS); then \
-			MS_PRINT_EXEC=$(PORT_BIN) ms_print $$out_file > $(BUILD_DIR)/massif-report.txt; \
+				--ignore-fn=read_entire_file \
+			$(SELECTED_PROFILE_BIN) $(TEST_ARGS); then \
+			MS_PRINT_EXEC=$(SELECTED_PROFILE_BIN) ms_print $$out_file > $(BUILD_DIR)/massif-report.txt; \
 			echo "✅ Massif report with symbols: $(BUILD_DIR)/massif-report.txt"; \
 		else \
 			echo "❌ Massif run failed. See output above."; \
@@ -189,12 +203,12 @@ valgrind-run: $(PORT_BIN)
 		fi
 
 # --- Valgrind memcheck (leaks + misuse) ---
-memcheck: $(PORT_BIN)
-	@valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(PORT_BIN) $(TEST_ARGS)
+memcheck: $(SELECTED_PROFILE_BIN)
+	@valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(SELECTED_PROFILE_BIN) $(TEST_ARGS)
 
 # --- perf sampling (CPU hotspots) ---
-perf-run: $(PORT_BIN)
-	@perf record -g --call-graph dwarf $(PORT_BIN) $(TEST_ARGS)
+perf-run: $(SELECTED_PROFILE_BIN)
+	@perf record -g --call-graph dwarf $(SELECTED_PROFILE_BIN) $(TEST_ARGS)
 	@perf report
 
 # --- Stack usage aggregation ---

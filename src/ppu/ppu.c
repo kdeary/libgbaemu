@@ -312,23 +312,22 @@ ppu_draw_scanline(
 ) {
     uint32_t x;
     uint32_t y;
-    uint16_t *dst;
-    size_t base;
+    uint16_t line[GBA_SCREEN_WIDTH];
 
     y = gba->io.vcount.raw;
-    dst = gba->shared_data.framebuffer.data;
-    base = GBA_SCREEN_WIDTH * (size_t)y;
 
     for (x = 0; x < GBA_SCREEN_WIDTH; ++x) {
         struct rich_color c;
 
         c = scanline->result[x];
-        dst[base + x] = (uint16_t)(
+        line[x] = (uint16_t)(
             ((uint32_t)c.red & 0x1F)
             | (((uint32_t)c.green & 0x1F) << 5)
             | (((uint32_t)c.blue & 0x1F) << 10)
         );
     }
+
+    gba_video_emit_scanline(gba, y, line, GBA_SCREEN_WIDTH);
 }
 
 /*
@@ -350,7 +349,6 @@ ppu_hdraw(
     if (io->vcount.raw >= GBA_SCREEN_REAL_HEIGHT) {
         io->vcount.raw = 0;
         atomic_fetch_add(&gba->shared_data.frame_counter, 1);
-        atomic_fetch_add(&gba->shared_data.framebuffer.version, 1);
 
         if (gba->settings.enable_frame_skipping && gba->settings.frame_skip_counter > 0) {
             gba->ppu.current_frame_skip_counter = (gba->ppu.current_frame_skip_counter + 1) % gba->settings.frame_skip_counter;
@@ -358,9 +356,6 @@ ppu_hdraw(
         } else {
             gba->ppu.skip_current_frame = false;
         }
-    } else if (io->vcount.raw == GBA_SCREEN_HEIGHT) {
-        atomic_store(&gba->shared_data.framebuffer.dirty, true);
-        atomic_fetch_add(&gba->shared_data.framebuffer.version, 1);
     }
 
     io->dispstat.vcount_eq = (io->vcount.raw == io->dispstat.vcount_val);
@@ -457,7 +452,10 @@ void
 ppu_render_black_screen(
     struct gba *gba
 ) {
-    pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
-    memset(gba->shared_data.framebuffer.data, 0x00, sizeof(gba->shared_data.framebuffer.data));
-    pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
+    uint16_t line[GBA_SCREEN_WIDTH];
+
+    memset(line, 0, sizeof(line));
+    for (uint32_t y = 0; y < GBA_SCREEN_HEIGHT; ++y) {
+        gba_video_emit_scanline(gba, y, line, GBA_SCREEN_WIDTH);
+    }
 }

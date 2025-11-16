@@ -242,6 +242,95 @@ static void quicksave_write_region_chunk(
     quicksave_buffer_free(&chunk);
 }
 
+static void quicksave_write_sparse_region_chunk(
+    struct quicksave_buffer *buffer,
+    enum quicksave_chunk_kind kind,
+    struct mem_region const *region,
+    size_t size
+) {
+    struct quicksave_buffer chunk = { 0 };
+    struct quicksave_region_header header = {
+        .decoded_size = (uint32_t)size,
+        .encoding = QS_REGION_RAW,
+    };
+    uint8_t scratch[MEM_PAGE_SIZE];
+
+    memset(header.reserved, 0, sizeof(header.reserved));
+    quicksave_write(&chunk, (uint8_t *)&header, sizeof(header));
+
+    for (uint32_t offset = 0; offset < size;) {
+        size_t chunk_size = min(sizeof(scratch), (size_t)(size - offset));
+        mem_region_read(region, offset, scratch, chunk_size);
+        quicksave_write(&chunk, scratch, chunk_size);
+        offset += (uint32_t)chunk_size;
+    }
+
+    quicksave_write_chunk_buffer(buffer, kind, &chunk);
+    quicksave_buffer_free(&chunk);
+}
+
+static bool quicksave_read_region_into_mem(
+    struct quicksave_buffer *buffer,
+    size_t chunk_end,
+    struct mem_region *region,
+    size_t size
+) {
+    struct quicksave_region_header header;
+    uint8_t scratch[MEM_PAGE_SIZE];
+    uint32_t offset = 0;
+
+    if (quicksave_read(buffer, (uint8_t *)&header, sizeof(header))) {
+        return true;
+    }
+    if (header.decoded_size != size) {
+        return true;
+    }
+
+    switch (header.encoding) {
+        case QS_REGION_RAW: {
+            while (offset < size) {
+                size_t chunk = min(sizeof(scratch), (size_t)(size - offset));
+                if (quicksave_read(buffer, scratch, chunk)) {
+                    return true;
+                }
+                mem_region_write(region, offset, scratch, chunk);
+                offset += (uint32_t)chunk;
+            }
+            break;
+        };
+        case QS_REGION_RLE: {
+            while (offset < size) {
+                uint16_t run;
+                uint8_t value;
+
+                if (quicksave_read(buffer, (uint8_t *)&run, sizeof(run))) {
+                    return true;
+                }
+                if (quicksave_read(buffer, &value, sizeof(value))) {
+                    return true;
+                }
+
+                size_t remaining = run;
+                while (remaining) {
+                    size_t emit = min(sizeof(scratch), remaining);
+                    memset(scratch, value, emit);
+                    mem_region_write(region, offset, scratch, emit);
+                    offset += (uint32_t)emit;
+                    remaining -= emit;
+                }
+            }
+            break;
+        };
+        default:
+            return true;
+    }
+
+    if (buffer->index != chunk_end) {
+        buffer->index = chunk_end;
+    }
+    return false;
+}
+
 static bool quicksave_read_region(
     struct quicksave_buffer *buffer,
     size_t chunk_end,
@@ -363,11 +452,11 @@ quicksave(
     memory_meta.gamepak_bus_in_use = gba->memory.gamepak_bus_in_use;
     quicksave_write_chunk(&buffer, QS_CHUNK_MEMORY_META, &memory_meta, sizeof(memory_meta));
 
-    quicksave_write_region_chunk(&buffer, QS_CHUNK_EWRAM, gba->memory.ewram, sizeof(gba->memory.ewram));
-    quicksave_write_region_chunk(&buffer, QS_CHUNK_IWRAM, gba->memory.iwram, sizeof(gba->memory.iwram));
-    quicksave_write_region_chunk(&buffer, QS_CHUNK_VRAM, gba->memory.vram, sizeof(gba->memory.vram));
-    quicksave_write_region_chunk(&buffer, QS_CHUNK_PALRAM, gba->memory.palram, sizeof(gba->memory.palram));
-    quicksave_write_region_chunk(&buffer, QS_CHUNK_OAM, gba->memory.oam, sizeof(gba->memory.oam));
+    quicksave_write_sparse_region_chunk(&buffer, QS_CHUNK_EWRAM, &gba->memory.ewram, EWRAM_SIZE);
+    quicksave_write_sparse_region_chunk(&buffer, QS_CHUNK_IWRAM, &gba->memory.iwram, IWRAM_SIZE);
+    quicksave_write_sparse_region_chunk(&buffer, QS_CHUNK_VRAM, &gba->memory.vram, VRAM_SIZE);
+    quicksave_write_sparse_region_chunk(&buffer, QS_CHUNK_PALRAM, &gba->memory.palram, PALRAM_SIZE);
+    quicksave_write_sparse_region_chunk(&buffer, QS_CHUNK_OAM, &gba->memory.oam, OAM_SIZE);
 
     if (gba->shared_data.backup_storage.size && gba->shared_data.backup_storage.data) {
         struct quicksave_backup_snapshot backup_meta;
@@ -530,35 +619,35 @@ quickload(
                 break;
             };
             case QS_CHUNK_EWRAM: {
-                if (quicksave_read_region(&buffer, chunk_end, gba->memory.ewram, sizeof(gba->memory.ewram))) {
+                if (quicksave_read_region_into_mem(&buffer, chunk_end, &gba->memory.ewram, EWRAM_SIZE)) {
                     goto error;
                 }
                 seen_ewram = true;
                 break;
             };
             case QS_CHUNK_IWRAM: {
-                if (quicksave_read_region(&buffer, chunk_end, gba->memory.iwram, sizeof(gba->memory.iwram))) {
+                if (quicksave_read_region_into_mem(&buffer, chunk_end, &gba->memory.iwram, IWRAM_SIZE)) {
                     goto error;
                 }
                 seen_iwram = true;
                 break;
             };
             case QS_CHUNK_VRAM: {
-                if (quicksave_read_region(&buffer, chunk_end, gba->memory.vram, sizeof(gba->memory.vram))) {
+                if (quicksave_read_region_into_mem(&buffer, chunk_end, &gba->memory.vram, VRAM_SIZE)) {
                     goto error;
                 }
                 seen_vram = true;
                 break;
             };
             case QS_CHUNK_PALRAM: {
-                if (quicksave_read_region(&buffer, chunk_end, gba->memory.palram, sizeof(gba->memory.palram))) {
+                if (quicksave_read_region_into_mem(&buffer, chunk_end, &gba->memory.palram, PALRAM_SIZE)) {
                     goto error;
                 }
                 seen_palram = true;
                 break;
             };
             case QS_CHUNK_OAM: {
-                if (quicksave_read_region(&buffer, chunk_end, gba->memory.oam, sizeof(gba->memory.oam))) {
+                if (quicksave_read_region_into_mem(&buffer, chunk_end, &gba->memory.oam, OAM_SIZE)) {
                     goto error;
                 }
                 seen_oam = true;

@@ -156,4 +156,4 @@ timer_read_value(
     } else {
         return (timer->counter.raw);
     }
-}
+}0

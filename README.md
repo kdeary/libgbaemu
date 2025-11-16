@@ -19,10 +19,12 @@ The implementation is derived from the excellent [Hades emulator](https://github
 2. **Integrate with a host**
    - Call `gba_create()` to allocate the core, then `gba_run()` on a worker thread.
    - Fill a `struct launch_config` with pointers to your BIOS/ROM data and runtime settings, then send a `MESSAGE_RESET` (see `include/gba/event.h`) so the core picks up the new game.
-   - Drive inputs by pushing `MESSAGE_KEY` events, and read video/audio via the shared framebuffer and APU ring buffer.
+   - Drive inputs by pushing `MESSAGE_KEY` events, and consume video/audio by registering a scanline callback and using the shared APU ring buffer.
 
 3. **Platform notes**
    - The core assumes the ROM buffer remains valid for the lifetime of the instance; on paged systems you can point it at memory-mapped views or demand-loaded chunks.
    - Backup storage changes are surfaced through `shared_data.backup_storage`; persist them using your own storage backend when `dirty` becomes `true`.
 
-Refer to `ports/sdl/` for a minimal desktop frontend that demonstrates message passing, rendering, and input plumbing.
+Refer to:
+- `ports/sdl/` for a minimal desktop frontend that demonstrates message passing, rendering, and input plumbing.
+- `ports/headless/` for a CLI-only frontend that runs the core and prints live frame/FPS counters using line-replaced console output.

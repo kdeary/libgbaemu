@@ -1,6 +1,6 @@
 /******************************************************************************\
 **
-**  Compatibility utilities for the Spark Mini Console emulator.
+**  Compatibility utilities for the libgbaemu library.
 **
 **  This header replaces the dependency on the original `hades.h` from the
 **  upstream Hades GBA project by providing a minimal set of macros and

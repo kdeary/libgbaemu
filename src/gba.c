@@ -75,6 +75,28 @@ gba_memory_attach_rom(
     }
 }
 
+static void
+gba_memory_init_regions(
+    struct memory *memory
+) {
+    mem_region_init(&memory->ewram, EWRAM_SIZE);
+    mem_region_init(&memory->iwram, IWRAM_SIZE);
+    mem_region_init(&memory->palram, PALRAM_SIZE);
+    mem_region_init(&memory->vram, VRAM_SIZE);
+    mem_region_init(&memory->oam, OAM_SIZE);
+}
+
+static void
+gba_memory_release_regions(
+    struct memory *memory
+) {
+    mem_region_release(&memory->ewram);
+    mem_region_release(&memory->iwram);
+    mem_region_release(&memory->palram);
+    mem_region_release(&memory->vram);
+    mem_region_release(&memory->oam);
+}
+
 /*
 ** Create a new GBA emulator.
 */
@@ -88,6 +110,7 @@ gba_create(
     hs_assert(gba);
 
     memset(gba, 0, sizeof(*gba));
+    gba_memory_init_regions(&gba->memory);
 
     // Initialize the ARM and Thumb decoder
     {
@@ -106,9 +129,6 @@ gba_create(
 
     // Shared Data
     {
-        pthread_mutex_init(&gba->shared_data.framebuffer.lock, NULL);
-        atomic_init(&gba->shared_data.framebuffer.version, 1);
-        atomic_init(&gba->shared_data.framebuffer.dirty, false);
         pthread_mutex_init(&gba->shared_data.audio_rbuffer_mutex, NULL);
     }
 
@@ -185,6 +205,12 @@ gba_state_stop(
     free(gba->shared_data.backup_storage.data);
     gba->shared_data.backup_storage.data = NULL;
 
+    mem_region_reset(&gba->memory.ewram);
+    mem_region_reset(&gba->memory.iwram);
+    mem_region_reset(&gba->memory.palram);
+    mem_region_reset(&gba->memory.vram);
+    mem_region_reset(&gba->memory.oam);
+
     gba_memory_release_rom(&gba->memory);
 
     gba->state = GBA_STATE_STOP;
@@ -240,26 +266,15 @@ gba_state_reset(
         );
     }
 
-    // Shared framebuffer
-    {
-        pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
-        memset(
-            gba->shared_data.framebuffer.data,
-            0x00,
-            sizeof(gba->shared_data.framebuffer.data)
-        );
-        atomic_store(&gba->shared_data.framebuffer.version, 1);
-        atomic_store(&gba->shared_data.framebuffer.dirty, false);
-        pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
-    }
-
     // Memory
     {
         struct memory *memory;
 
         memory = &gba->memory;
+        gba_memory_release_regions(memory);
         gba_memory_release_rom(memory);
         memset(memory, 0, sizeof(*memory));
+        gba_memory_init_regions(memory);
 
         // Copy the BIOS and ROM to memory
         memcpy(gba->memory.bios, config->bios.data, min(config->bios.size, BIOS_SIZE));
@@ -671,29 +686,34 @@ gba_delete(
     struct gba *gba
 ) {
     if (gba) {
+        gba_memory_release_regions(&gba->memory);
         gba_memory_release_rom(&gba->memory);
     }
     free(gba);
 }
 
-/*
-** Lock the mutex protecting the framebuffer shared with the frontend.
-*/
 void
-gba_shared_framebuffer_lock(
-    struct gba *gba
+gba_set_video_sink(
+    struct gba *gba,
+    struct gba_video_sink const *sink
 ) {
-    pthread_mutex_lock(&gba->shared_data.framebuffer.lock);
+    if (sink) {
+        gba->video_sink = *sink;
+    } else {
+        memset(&gba->video_sink, 0, sizeof(gba->video_sink));
+    }
 }
 
-/*
-** Release the mutex protecting the framebuffer shared with the frontend.
-*/
 void
-gba_shared_framebuffer_release(
-    struct gba *gba
+gba_video_emit_scanline(
+    struct gba *gba,
+    uint32_t y,
+    uint16_t const *pixels,
+    size_t count
 ) {
-    pthread_mutex_unlock(&gba->shared_data.framebuffer.lock);
+    if (gba->video_sink.scanline) {
+        gba->video_sink.scanline(gba, gba->video_sink.userdata, y, pixels, count);
+    }
 }
 
 /*
