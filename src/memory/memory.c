@@ -648,19 +648,195 @@ mem_read8(
     enum access_types access_type
 ) {
 #ifdef WITH_DEBUGGER
-    debu=þ=Âq—käŒ©<”jsga"ž;ó(Âæf”ýJúçTa¨|};Èúf±G5çm>7^i.òy‰™.AšèùÛ/JÀ»(˜Éä#[¶‘H!‚Î‘šYÝ¦¶Á	ìÑ†±ŠnúÕø½z@»&êçZ&3·”ùøW=Ç}9ˆ¬á’±v~³Èk3OÖvFÀ–uãŸ‰–ç7Ý¤ù’Ž‰õyüotÆ‰’jòwDZ¸#Ùí'ùôÕ‹‚{_|G§•î…N˜á&€æ¥—PD—p±Zšµ¥?Wð^î@i(ÿŸ #/DÍÎ^šEŠæéútþAw
-‰@qž7åÎƒ/,Ì1¾ß
--–ªai˜‰„ôíjO*œøèˆ©¿ýY÷­—H š02–›¸+?’h‹,é¤{[ÀÒÈ3CÝ,„õîÒãitâè>Ùm¾D&D†Çb¼Ö7çSmÙ­w©]Ö5G?IQJè(™+¿¢…ôE@¢*Ò”=÷ÇL÷…ˆnk¢}”kº‡ëà÷@šø<ßÒöÒ@,KmC;H ©n¼d¦<R%†ããÓpšÒoØbcž¦rn\¢Îðe˜×.b€æí.o	Ð•2ñOÞ˜f9]{ ½øv®ÿRZ©-è)M¤ig˜*Di%;Ù‚¢ìAÂÓ3O›u&›3Æ,Uýj=Èì@ÑÏ88Æ!»g`–ŠÛMBK–ƒbF*ƒÔµ<>´ó¢«Ý}åþ)Ð¦éšp½"1ÚwZŽ•€®Î˜ƒø›)ÃÚ‡"k‡!kck|Ï‰S*jˆYJåã”m…·‹öüÿ»ÜXÖØº7¨CÚ7
- !õ‡i†þkm¦ˆVÇÔ"ºqkÀ'd/ä5ûg«sÃ™¶oè‹Í{ËžÈ÷ÿ*³ÅÁ©Ð@Ø·òšÙpÆÌÅè>Ø Gl°fÞÑc¸üóQ¡æAéßCÞtäÑ+¬Î¸>|ƒ's–Ìc„¨jžxÍ<à*	¥RË*Ç0íöKGz†y¼?”m~ØçmÌÊ±ªGÊ…l;Ž³ójñÙj»UbæÆÖÓ}Ä©ÍOUÔ ~;Dæ¹ÂcA%r#åÜ¾$E%yBòµ_vµ£ÃM>k
-E#x²›)ï‚3‡üî, q3?¦!Äé†ð‚å‚UOw“~à£bµ*Ô&àÕQäÖiâ˜ñ=£„ïÔ¨éW;%IûŠ‡	«¼Êúkä¯U®)N´~—Æ7z'5'‹¯y’ßaoÛÕ´Ü×‹+¾Ã(Ž²~Þ¸ßýæ„©¿v'¾™þ’Ô¯»£_I|v€Xå¯Îd!Ãðoú_iùS´ÎõÓèÙ»G%+6^DU¤SVfÁ‘n	BÆŽñ>!Z}°Éâ ×Ý2aƒH
-ÊG9ö»C<>Pæ_hB(U|+ Äõ.£–¸ž¤<{^™Þ(`Â‘d÷çd_’¿2CMŒ!óÍj4cÐoyôVèeØÊÓD ZºÕ¿v[EÀ?âV‰vý±Û2¶ÓV½é&È-h¼äŽJz^8‹<n–Ü…V.DÀ¤m§„§žÂ1a¥T8 "ŽX)¤âtJˆ‹:;Ä5µÚ8~Ü 0S $" `  ënW¿éõ^Vr0f€V—;z¹–n–V2™ îAY9YW³€&¼Ám `‡möø©d)Q–MÂDx€ç~%€TBùA ÈPXÉ  yßë[dCÝóîsg›™Ÿ·6Ž3oM1æÜ“V‹›³I’wR›V<»l¶²æi*ÐìÐ©<¶ šæhq-âÐTM‹Åí—´Ø­Ë%!i¤…s†y¨î   ™™  õ,ëÿµm%AD£ á‰¿¿§¿Cá`Ê.F3À&‰• /Ôn Rî×kâ ÷TØp›pJ7)ë1‘´R`#]±”'(Lvþó@í´®‡Ö„¾ñ×?”¡r·éN)¤ãó™q`1ÿ¾IÃdÀÙÌ¸lÝ©Ônbpq€CpÇ`mÂ3¼TÍ'UkÊ1`¶-é}t;i]	SkÁ1]¶=iG¦t/-uö}½Bõú8rØEˆ'ïfÜ¶¢¿ùÇÄƒúWà˜ß›Õ7lVÍ¶¤?f`Ï_JõeÖv¤«G Â\u]æ§ÿUzôüK§Uµî¹P¹¶]«­‘.L¯M¤«T}7p¦ aÖÂbÀŒš·-FS\2Šz2Ú”h;•¡””ñÖúkÍÕ¨t
-äa0÷öMYJÌvÝt|}ÍŒ 4OüèyÔ[&ÏB\¹Ü,ëÈíånà}ÿ˜f˜«‰4Œ©ƒ×Ø–B‘Àx´ÖCX3›cùêáûìˆD9l	Èå¼m&*
-L‹H|(õàÇ#pÆÒ)8£j©¨-á!’)nI7ÅI	¨%-t: Ê}¥ ‚OA ¦tî8–ÛwŒ	'™v-Ê€2q-ü‰‚¿+…¨®euâA‘ ‰¥½BÇ¢‘à•ÃõûdúÛBrÚ'µÍ3_¢ª•¶ÙŽQKwÞ;«/J	Ô±Üf`v2œÜÄ ž‹_iB]'V‚—3˜£Œ)ëäD¶™ž¤ôz…’)*3 ;|¶ƒ–Ð¶Â YVœ]bAIßÒÍ†Rª)g1hZ2î3y¹b'_#iÿ:#'y7§ámìz,Jø-_,» X¿&*Oš}kâï†d%uƒ?ô)ÒJLR9â%$¼ÎðÑ†„¾pq~Ý‹¨h‘îá´.±9Ã¸CÅ³2Ÿäãœ¯k^Œã3&ê¿¨]-:7ŸcV6.PÈ\® •00á'ÎÊŸžò÷føyÜÈïùæ?è4š”œ}®»„0bîîb¾cå­‹K±—Ë>1ÂøY™ìü¯Ô<^Ÿé5F¢cëìï§ãã+Þ	€O^¸`íÇ©…{ {ã’ÈyUœ0§}æR‘aüéí
-çUGPE¦¨(ðd‘ @o}¤¬­9µšó8Ë]nç ]^EOt/[å ÕÁÝáÍŸãQËyÄ™\Ê!I%T°P@Ð»”0Âñ˜tÌþø³uäŸ§õ¨•Ïój¿Ç»o1fD—“î¡P—‹Ë0~Ähû®uGÅ`ßÚÌ”LLÅÈüJ“BñQE-0÷âN…(å¼­R$#ó¨'ñW<ÃCà÷Ã	/º;ª>Á™Å¸¿Z”­¿|§È;b4M,!,¡È·å•²¤úç±(ñ Ø_An¥iØ-Tyò} X6©'t7r›9ÝìäâòêÜ‚H-ƒ	¨B•e5ñôû€4ÛÞ» 3Âá–0²V)â³’3x‚H¿Zè|Aéf•´â	‚(^ÿÓç‚púð·ê’ktµYQªØrX[¢JFA¥é*=”0dÞcbn^lŽ–+‚k‹wP¿e[Ÿ$¨wF—%JxGZµm`”	ŠTÕÞþý]=”êžQOHíppË“»¢ž9…ð‡¯ñ3-÷ÿéLƒî™ÂƒÅnŸPÌ7»ÚitJn`jÓLLÎ;O5ÇÖÁ¡øþZ|!¼€;>¬pbÂI±=|° ÃŒ1Õ.Ç ¹6J¨`Š§PZƒG8DÃ¾¤ÂPùìÈ”ôa¾ê_"_½¾m÷¦\z¦øá%¬ÏH	¬DL›ù'Ò$_2ì«Qí•¦›âM{0©åF³’j)«ËíŸgá˜EM\möðø¦•{¸7ž7b™µ«<ÛH€"£i¢µ>ìžØb#d™¨QÜúów}®þ*õ(Ê<aþ"÷2±‚Ø¶0­!¶£P™ï_ñ£½Ç?(I¢$ƒ÷mÎYIAfÝxœ\äÿ‡Ý ¢S âÔõ“–9'²yia“Sþ3“j`À!ÉZû2×n“‰‰ÃÀÙâ¦e”öRWÔŸö¿àC:'£°DËÐ`ž0áä‡r´·³5Ë“‚läRãs-Ác­ =Ôü|9e
-2ÂaÂÿ×Ÿ¦b”x<×³Í¾#vNóõa<Øht{òì~H·$ÉeÙÞPœ¸ÔŠëJ÷±t5gÂPõ‚¹¥ÖÐî®é«=JzFzwcnéëûœ¿‰Õª™.u@ìiòR…®®‡«­K$
-ê$¾ýu
-ÀÉ”×”#@¢Dæ_m®SñÝ7'nK*¦¢4!üC*­ÇëP(1qä?>ð”Ö‚h«øÈ,¸tAÅØ5 tÆÕ17FS
-9l ¨»_­ÀJÞTï‚Œ±îX3OæuxçmE…UèÛ¿ˆÇà¸_¶_½£&GŠ³¡o—;F{Á*DÉÛCÞŸ®ÁŽ<ž£[ó9fD£×iHEÌôjìWû_ò×Œ½3Y&“‘èk×Lß=žuLŸø¾QGZœÀ‹g Ä™b]Ò€Ï…ˆ	Ñ¡©Š†>@5)Jù£áŒ'´™
-D¸¨DÉÅŽÔˆk
-Šˆyhnr}‡!kã‘ÜÄ$¾»©¬8Æ"º)'ÖãÖíQ˜õÍCµ3Èx‘Ž}k<á£ºuîß1¤‡åÿc#Ïë—Ù8<W!¸Škf•×x€©›JñCÙ#ÓÄß<E-6œ‘|ð] ”Æ,þ>€±Xï”Ë­]ÛC…“ãöo›žÙvÅt NÓ3(¡°ÖÂ9èž+ŒhüÅ´¢ÐûÆcŒó®Ì ÷slÀ½™†xMñ;êóR—âx‘$FêŽ?eø>s¯„LB5›Ëä¿çÓ¨wî‹Á†ž°ÃÕ‹`osrL¾ÇZ¿N„¦ŠEBŠ¥ÇÎ"âÇ‰¢¹°‰ßpºîµ¨Ó‹Ö Iýrb<æÅ¸øªtÇªÖCÞ¯D†[×Ë×ñ
-¼*4ûâ’@råãÑøÍt ý‹þ	--‘ÕHã'Ç¬Bt¼îÍè×šN-æVƒž¨÷‡Ñ=ä?k€”(¼ì<ÙÑ}s5çf\¹i`£ØÍ½<j™•äf}VRd/Ï‰œ`ŠVÍ"_ÄR@ùF-qu
+    debugger_eval_read_watchpoints(gba, addr, sizeof(uint8_t));
+#endif
+
+    mem_access(gba, addr, sizeof(uint8_t), access_type);
+    return (template_read(uint8_t, gba, addr));
+}
+
+uint16_t
+mem_read16_raw(
+    struct gba *gba,
+    uint32_t addr
+) {
+    return (template_read(uint16_t, gba, addr));
+}
+
+/*
+** Read the half-word at the given address.
+*/
+uint16_t
+mem_read16(
+    struct gba *gba,
+    uint32_t addr,
+    enum access_types access_type
+) {
+#ifdef WITH_DEBUGGER
+    debugger_eval_read_watchpoints(gba, addr, sizeof(uint16_t));
+#endif
+
+    mem_access(gba, addr, sizeof(uint16_t), access_type);
+    return (template_read(uint16_t, gba, addr));
+}
+
+/*
+** Read the half-word at the given address and ROR it if the
+** address isn't aligned.
+*/
+uint32_t
+mem_read16_ror(
+    struct gba *gba,
+    uint32_t addr,
+    enum access_types access_type
+) {
+    uint32_t rotate;
+    uint32_t value;
+
+#ifdef WITH_DEBUGGER
+    debugger_eval_read_watchpoints(gba, addr, sizeof(uint16_t));
+#endif
+
+    mem_access(gba, addr, sizeof(uint16_t), access_type);
+
+    rotate = (addr & 0b1) * 8;
+
+    // printf("attempting to read %x\n", addr);
+    if((addr & 0xff00000) == 0xbf00000) return (ror32(0, rotate));
+    value = template_read(uint16_t, gba, addr);
+
+    /* Unaligned 16-bits loads are supposed to be unpredictable, but in practice the GBA rotates them */
+    return (ror32(value, rotate));
+}
+
+uint32_t
+mem_read32_raw(
+    struct gba *gba,
+    uint32_t addr
+) {
+    return (template_read(uint32_t, gba, addr));
+}
+
+/*
+** Read the word at the given address.
+*/
+uint32_t
+mem_read32(
+    struct gba *gba,
+    uint32_t addr,
+    enum access_types access_type
+) {
+#ifdef WITH_DEBUGGER
+    debugger_eval_read_watchpoints(gba, addr, sizeof(uint32_t));
+#endif
+
+    mem_access(gba, addr, sizeof(uint32_t), access_type);
+    return (template_read(uint32_t, gba, addr));
+}
+
+/*
+** Read the word at the given address and ROR it if the
+** address isn't aligned.
+*/
+uint32_t
+mem_read32_ror(
+    struct gba *gba,
+    uint32_t addr,
+    enum access_types access_type
+) {
+    uint32_t rotate;
+    uint32_t value;
+
+#ifdef WITH_DEBUGGER
+    debugger_eval_read_watchpoints(gba, addr, sizeof(uint32_t));
+#endif
+
+    mem_access(gba, addr, sizeof(uint32_t), access_type);
+
+    rotate = (addr % 4) << 3;
+    value = template_read(uint32_t, gba, addr);
+
+    return (ror32(value, rotate));
+}
+
+void
+mem_write8_raw(
+    struct gba *gba,
+    uint32_t addr,
+    uint8_t val
+) {
+    template_write(uint8_t, gba, addr, val);
+}
+
+/*
+** Write a byte at the given address.
+*/
+void
+mem_write8(
+    struct gba *gba,
+    uint32_t addr,
+    uint8_t val,
+    enum access_types access_type
+) {
+#ifdef WITH_DEBUGGER
+    debugger_eval_write_watchpoints(gba, addr, sizeof(uint8_t), val);
+#endif
+
+    mem_access(gba, addr, sizeof(uint8_t), access_type);
+    template_write(uint8_t, gba, addr, val);
+}
+
+void
+mem_write16_raw(
+    struct gba *gba,
+    uint32_t addr,
+    uint16_t val
+) {
+    template_write(uint16_t, gba, addr, val);
+}
+
+
+/*
+** write a half-word at the given address.
+*/
+void
+mem_write16(
+    struct gba *gba,
+    uint32_t addr,
+    uint16_t val,
+    enum access_types access_type
+) {
+#ifdef WITH_DEBUGGER
+    debugger_eval_write_watchpoints(gba, addr, sizeof(uint16_t), val);
+#endif
+
+    mem_access(gba, addr, sizeof(uint16_t), access_type);
+    template_write(uint16_t, gba, addr, val);
+}
+
+void
+mem_write32_raw(
+    struct gba *gba,
+    uint32_t addr,
+    uint32_t val
+) {
+    template_write(uint32_t, gba, addr, val);
+}
+
+/*
+** Write a word at the given address.
+*/
+void
+mem_write32(
+    struct gba *gba,
+    uint32_t addr,
+    uint32_t val,
+    enum access_types access_type
+) {
+#ifdef WITH_DEBUGGER
+    debugger_eval_write_watchpoints(gba, addr, sizeof(uint32_t), val);
+#endif
+
+    mem_access(gba, addr, sizeof(uint32_t), access_type);
+    template_write(uint32_t, gba, addr, val);
+}
